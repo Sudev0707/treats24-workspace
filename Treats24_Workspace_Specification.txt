@@ -1,0 +1,202 @@
+Treats24 Workspace - Internal Project Management Application
+
+Purpose
+
+Treats24 Workspace is a private, internal project management and issue
+tracking application for the Treats24 team. The application is not
+public and is intended to manage software development, tasks, bugs,
+releases, documentation, and team collaboration.
+
+Goals
+
+-   Track progress of all Treats24 applications.
+-   Manage projects, tasks, and issues similar to Jira.
+-   Maintain documentation similar to Notion.
+-   Monitor team productivity and releases.
+-   Keep costs at ₹0 initially.
+
+Applications Managed
+
+1.  User App
+2.  Restaurant Partner App
+3.  Admin Dashboard
+4.  Backend APIs
+5.  Infrastructure
+
+Technology Stack
+
+Frontend: - React - TypeScript - Tailwind CSS - React Query - Zustand
+
+Backend: - Supabase
+
+Database: - PostgreSQL (Supabase)
+
+Authentication: - Supabase Auth
+
+Storage: - Supabase Storage
+
+Hosting: - Vercel
+
+Design System
+
+Theme: Treats24 Branding (aligned with mobile apps)
+
+Colors: - Primary: #6A21B0 (purple) - Primary Glow: #8B3DCC -
+Accent/CTA: #FF7A45 (coral) - Success: #22C55E - Warning: #F59E0B -
+Danger: #EF4444 - Background: #F5EEFD (pale lavender) - Cards: #FFFFFF
+
+Fonts: - Inter - Poppins
+
+UI Language: - Large rounded corners (24–32px cards, pill search/CTAs) -
+Soft lavender workspace background with white elevated cards - Purple
+gradients for heroes and brand marks - Coral for primary create actions
+and high-priority highlights
+
+User Roles
+
+1.  Owner
+2.  Admin
+3.  Project Manager
+4.  Developer
+5.  QA Tester
+6.  Viewer
+
+Authentication
+
+-   Email + Password Login
+-   Google Login
+-   Invite Link System
+-   Workspace-based access control
+-   JWT Sessions
+-   Row Level Security (RLS)
+
+Core Modules
+
+1.  Dashboard
+2.  Projects
+3.  Tasks
+4.  Issues & Bugs
+5.  Releases
+6.  Documents
+7.  Team Management
+8.  Reports
+9.  Settings
+
+Dashboard Features
+
+-   Total Projects
+-   Active Tasks
+-   Open Issues
+-   Upcoming Releases
+-   Team Productivity
+-   Recent Activity
+-   My Tasks
+-   Overdue Tasks
+
+Project Management
+
+Project Fields: - Name - Description - Status - Priority - Start Date -
+Due Date - Team Members - Progress Percentage
+
+Views: - List - Kanban - Calendar - Timeline
+
+Task Management
+
+Fields: - Task ID - Title - Description - Status - Priority - Assignee -
+Reporter - Due Date - Attachments - Comments - Activity Logs
+
+Statuses: - Backlog - Todo - In Progress - Testing - Blocked - Done -
+Released
+
+Issue Tracking
+
+Issue Types: - Bug - Feature - Improvement - Hotfix - Documentation
+
+Fields: - Issue ID - Title - Description - Steps to Reproduce - Expected
+Result - Actual Result - Severity - Priority - Assignee - Attachments -
+Comments
+
+Release Management
+
+Fields: - Version - Release Name - Release Date - Features Included -
+Bugs Fixed - Release Notes - Status
+
+Statuses: - Planned - In Development - Testing - Released
+
+Team Management
+
+-   Invite Members
+-   Roles and Permissions
+-   Workload Tracking
+-   Activity Timeline
+-   Productivity Metrics
+
+Documents
+
+-   Meeting Notes
+-   Requirements
+-   Technical Documentation
+-   Release Notes
+-   Rich Text Editor
+
+Notifications
+
+-   Task Assigned
+-   Comment Added
+-   Status Changed
+-   Release Published
+-   Due Date Reminder
+
+Database Tables
+
+-   profiles
+-   workspaces
+-   workspace_members
+-   projects
+-   tasks
+-   issues
+-   comments
+-   attachments
+-   releases
+-   activities
+-   notifications
+-   invitations
+
+Storage Buckets
+
+-   avatars
+-   attachments
+-   documents
+-   project-assets
+
+Security
+
+-   Row Level Security (RLS)
+-   Private Storage Buckets
+-   Workspace Isolation
+-   Role-based Permissions
+-   Environment Variables
+-   Email Verification
+
+Development Workflow
+
+WhatsApp Discussion ↓ Create Task/Issue ↓ Assign Member ↓ Development ↓
+Testing ↓ Done ↓ Release
+
+Future Features
+
+-   Sprint Management
+-   Time Tracking
+-   Gantt Charts
+-   Email Notifications
+-   Mobile Application
+-   APK Upload Management
+-   Advanced Analytics
+
+Target Team Size
+
+5-50 internal users.
+
+Estimated Cost
+
+Initial Cost: ₹0 using free tiers of Supabase and Vercel.
