@@ -1,17 +1,26 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { markOnboardingCompleteLocally, isProfileIncomplete } from "@/lib/onboarding";
 import { useWorkspace } from "@/lib/workspace-store";
 
 export function OnboardingForm() {
-  const { members, currentUserId, completeOnboarding } = useWorkspace();
-  const currentUser = members.find((m) => m.id === currentUserId);
-  const [name, setName] = useState(currentUser?.name ?? "");
-  const [role, setRole] = useState(currentUser?.role === "Developer" ? "" : (currentUser?.role ?? ""));
+  const navigate = useNavigate();
+  const { currentMember, currentUserId, completeOnboarding } = useWorkspace();
+  const [name, setName] = useState(() => {
+    const value = currentMember.name?.trim() ?? "";
+    return value;
+  });
+  const [role, setRole] = useState(() => {
+    const value = currentMember.role?.trim() ?? "";
+    if (!value || value === "Developer") return "";
+    return value;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -33,6 +42,8 @@ export function OnboardingForm() {
     setIsSubmitting(true);
     try {
       await completeOnboarding({ name: trimmedName, role: trimmedRole });
+      markOnboardingCompleteLocally(currentUserId);
+      navigate({ to: "/", replace: true });
     } catch (error) {
       toast.error("Could not save your profile", {
         description: error instanceof Error ? error.message : "Please try again.",
@@ -46,7 +57,9 @@ export function OnboardingForm() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Set up your profile</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Tell us how you&apos;d like to appear in the workspace.
+          {isProfileIncomplete(currentMember)
+            ? "Tell us how you'd like to appear in the workspace."
+            : "Confirm how you'd like to appear in the workspace."}
         </p>
       </div>
 

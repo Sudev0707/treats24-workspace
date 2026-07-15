@@ -1,4 +1,8 @@
-import { getCookies, setCookie } from "@tanstack/react-start/server";
+import {
+  getCookies,
+  setCookie,
+  setResponseHeader,
+} from "@tanstack/react-start/server";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import ws from "ws";
@@ -21,9 +25,12 @@ export function getSupabaseServerClient(): SupabaseClient {
           value,
         }));
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value, options }) => {
           setCookie(name, value, options);
+        });
+        Object.entries(headers).forEach(([name, value]) => {
+          setResponseHeader(name, value);
         });
       },
     },

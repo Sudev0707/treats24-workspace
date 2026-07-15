@@ -38,7 +38,6 @@ import {
 } from "@/components/ticket/ticket-ui";
 import { useWorkspace } from "@/lib/workspace-store";
 import {
-  CURRENT_USER_ID,
   UNASSIGNED_ID,
   findWorkItem,
   getMember,
@@ -571,7 +570,7 @@ export function CreateTicketDialog({
                 <button
                   type="button"
                   className="text-xs text-primary hover:underline"
-                  onClick={() => setAssigneeId(CURRENT_USER_ID)}
+                  onClick={() => setAssigneeId(currentUserId)}
                 >
                   Assign to me
                 </button>

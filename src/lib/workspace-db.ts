@@ -13,11 +13,74 @@ import type {
   TicketAttachment,
   ProjectNote,
 } from "@/lib/data";
+import { UNASSIGNED_ID } from "@/lib/data";
 import { markOnboardingCompleteLocally } from "@/lib/onboarding";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
 const PROFILE_COLUMNS = "id, name, email, role, avatar";
+
+export async function fetchProfileById(id: string): Promise<Member | null> {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? mapProfile(data) : null;
+}
+
+function isResolvableMemberId(id: string): boolean {
+  if (!id || id === UNASSIGNED_ID) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+export function collectReferencedMemberIds(data: {
+  projects: Project[];
+  tasks: Task[];
+  issues: Issue[];
+  queries: SavedQuery[];
+  activity: ActivityItem[];
+  projectNotes: ProjectNote[];
+}): string[] {
+  const ids = new Set<string>();
+
+  for (const project of data.projects) {
+    if (isResolvableMemberId(project.leadId)) ids.add(project.leadId);
+    for (const memberId of project.memberIds) {
+      if (isResolvableMemberId(memberId)) ids.add(memberId);
+    }
+  }
+  for (const task of data.tasks) {
+    if (isResolvableMemberId(task.assigneeId)) ids.add(task.assigneeId);
+    if (isResolvableMemberId(task.reporterId)) ids.add(task.reporterId);
+  }
+  for (const issue of data.issues) {
+    if (isResolvableMemberId(issue.assigneeId)) ids.add(issue.assigneeId);
+    if (isResolvableMemberId(issue.reporterId)) ids.add(issue.reporterId);
+  }
+  for (const query of data.queries) {
+    if (isResolvableMemberId(query.createdBy)) ids.add(query.createdBy);
+  }
+  for (const item of data.activity) {
+    if (isResolvableMemberId(item.userId)) ids.add(item.userId);
+  }
+  for (const note of data.projectNotes) {
+    if (isResolvableMemberId(note.authorId)) ids.add(note.authorId);
+  }
+
+  return [...ids];
+}
+
+export async function fetchProfilesByIds(ids: string[]): Promise<Member[]> {
+  const uniqueIds = [...new Set(ids.filter(isResolvableMemberId))];
+  if (!uniqueIds.length) return [];
+
+  const supabase = requireClient();
+  const { data, error } = await supabase.from("profiles").select(PROFILE_COLUMNS).in("id", uniqueIds);
+  if (error) {
+    console.warn("profiles batch fetch failed:", error.message);
+    return [];
+  }
+  return (data ?? []).map(mapProfile);
+}
 
 export function generateEntityId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
@@ -65,10 +128,10 @@ function mapProfile(row: {
 }): Member {
   return {
     id: row.id,
-    name: row.name,
-    role: row.role,
-    avatar: row.avatar,
-    email: row.email,
+    name: row.name ?? "",
+    role: row.role ?? "",
+    avatar: row.avatar ?? "?",
+    email: row.email ?? "",
     onboardingCompleted: row.onboarding_completed,
   };
 }
@@ -332,10 +395,7 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     projectNotesRes,
     notificationsRes,
   ] = await Promise.all([
-    supabase
-      .from("workspace_members")
-      .select(`profile:profiles(${PROFILE_COLUMNS})`)
-      .eq("workspace_id", workspaceId),
+    supabase.from("profiles").select(PROFILE_COLUMNS).order("name"),
     supabase.from("projects").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("tasks").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("issues").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
@@ -348,9 +408,11 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
   ]);
 
   if (profilesRes.error) {
-    console.warn("workspace members unavailable:", profilesRes.error.message);
+    console.warn("profiles unavailable:", profilesRes.error.message);
   }
-  if (projectsRes.error) throw projectsRes.error;
+  if (projectsRes.error) {
+    console.warn("projects unavailable:", projectsRes.error.message);
+  }
   if (tasksRes.error) {
     console.warn("tasks unavailable:", tasksRes.error.message);
   }
@@ -384,23 +446,36 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     console.warn("notifications unavailable:", notificationsRes.error.message);
   }
 
-  const members = (profilesRes.data ?? [])
-    .flatMap((row) => {
-      const profile = row.profile;
-      if (!profile) return [];
-      return Array.isArray(profile) ? profile : [profile];
-    })
-    .map((p) => mapProfile(p));
+  const members = profilesRes.error ? [] : (profilesRes.data ?? []).map(mapProfile);
+
+  const projects = projectsRes.error ? [] : (projectsRes.data ?? []).map(mapProject);
+  const tasks = tasksRes.error ? [] : (tasksRes.data ?? []).map(mapTask);
+  const issues = issuesRes.error ? [] : (issuesRes.data ?? []).map(mapIssue);
+  const queries = queriesRes.error ? [] : (queriesRes.data ?? []).map(mapQuery);
+  const activity = activityRes.error ? [] : (activityRes.data ?? []).map(mapActivity);
+  const releases = releasesRes.error ? [] : (releasesRes.data ?? []).map(mapRelease);
+  const documents = documentsRes.error ? [] : (documentsRes.data ?? []).map(mapDocument);
+
+  const memberIds = new Set(members.map((member) => member.id));
+  const missingMemberIds = collectReferencedMemberIds({
+    projects,
+    tasks,
+    issues,
+    queries,
+    activity,
+    projectNotes,
+  }).filter((id) => !memberIds.has(id));
+  const referencedMembers = missingMemberIds.length ? await fetchProfilesByIds(missingMemberIds) : [];
 
   return {
-    members,
-    projects: (projectsRes.data ?? []).map(mapProject),
-    tasks: tasksRes.error ? [] : (tasksRes.data ?? []).map(mapTask),
-    issues: issuesRes.error ? [] : (issuesRes.data ?? []).map(mapIssue),
-    queries: queriesRes.error ? [] : (queriesRes.data ?? []).map(mapQuery),
-    activity: activityRes.error ? [] : (activityRes.data ?? []).map(mapActivity),
-    releases: releasesRes.error ? [] : (releasesRes.data ?? []).map(mapRelease),
-    documents: documentsRes.error ? [] : (documentsRes.data ?? []).map(mapDocument),
+    members: [...members, ...referencedMembers],
+    projects,
+    tasks,
+    issues,
+    queries,
+    activity,
+    releases,
+    documents,
     projectNotes,
     notifications,
   };
@@ -408,26 +483,41 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
 
 export async function ensureWorkspaceMembership(): Promise<void> {
   const supabase = requireClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
   const { error } = await supabase.rpc("ensure_default_workspace_membership");
   if (!error) return;
 
   const isMissingRpc =
     error.code === "PGRST202" ||
+    error.code === "42883" ||
     error.message.includes("ensure_default_workspace_membership");
-  if (!isMissingRpc) throwDbError(error);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!isMissingRpc) {
+    console.warn("ensure_default_workspace_membership failed:", error.message);
+  }
 
   const { error: insertError } = await supabase.from("workspace_members").insert({
     workspace_id: DEFAULT_WORKSPACE_ID,
     profile_id: user.id,
     role: "member",
   });
-  if (insertError?.code === "23505") return;
-  throwDbError(insertError);
+
+  if (!insertError) return;
+  if (insertError.code === "23505") return;
+
+  const isRlsBlocked =
+    insertError.code === "42501" || insertError.message.includes("row-level security");
+  if (isRlsBlocked) {
+    console.warn(
+      "Workspace membership insert blocked by RLS. Apply supabase/migrations/006_ensure_workspace_membership.sql in Supabase.",
+    );
+    return;
+  }
+
+  console.warn("Could not ensure workspace membership:", insertError.message);
 }
 
 export async function ensureProjectInDb(

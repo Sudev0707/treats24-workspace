@@ -2,34 +2,35 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
-import { isAuthRoute, isOnboardingRoute, useAuth } from "@/lib/auth";
+import { isAuthRoute, isOnboardingRoute, isProfileRoute, useAuth } from "@/lib/auth";
 import { needsOnboarding } from "@/lib/onboarding";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useWorkspace } from "@/lib/workspace-store";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading, isConfigured } = useAuth();
-  const { members, currentUserId, isLoading: workspaceLoading } = useWorkspace();
+  const { currentMember, currentUserId, isLoading: workspaceLoading } = useWorkspace();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const authPage = isAuthRoute(pathname);
   const onboardingPage = isOnboardingRoute(pathname);
+  const profilePage = isProfileRoute(pathname);
 
-  const currentMember = members.find((member) => member.id === currentUserId);
   const userNeedsOnboarding =
     isConfigured && Boolean(user) && needsOnboarding(currentMember, currentUserId);
 
   useEffect(() => {
     if (!isConfigured || authPage) return;
+    if (onboardingPage && authLoading) return;
     if (!authLoading && !user) {
       navigate({ to: "/login", replace: true });
     }
-  }, [user, authLoading, isConfigured, authPage, navigate]);
+  }, [user, authLoading, isConfigured, authPage, onboardingPage, navigate]);
 
   useEffect(() => {
     if (!isConfigured || authPage || authLoading || workspaceLoading || !user) return;
 
-    if (userNeedsOnboarding && !onboardingPage) {
+    if (userNeedsOnboarding && !onboardingPage && !profilePage) {
       navigate({ to: "/onboarding", replace: true });
       return;
     }
@@ -45,6 +46,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     user,
     userNeedsOnboarding,
     onboardingPage,
+    profilePage,
     navigate,
   ]);
 

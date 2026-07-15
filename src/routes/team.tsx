@@ -10,7 +10,7 @@ export const Route = createFileRoute("/team")({
 });
 
 function TeamPage() {
-  const { tasks, members } = useWorkspace();
+  const { tasks, members, isLoading } = useWorkspace();
 
   return (
     <JiraPage>
@@ -28,7 +28,9 @@ function TeamPage() {
           <span>Done</span>
           <span className="text-right">Rate</span>
         </div>
-        {members.length === 0 ? (
+        {isLoading ? (
+          <JiraEmpty message="Loading team members…" />
+        ) : members.length === 0 ? (
           <JiraEmpty message="No team members yet." />
         ) : (
           members.map((m) => {

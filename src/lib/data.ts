@@ -25,14 +25,12 @@ export type Member = {
   onboardingCompleted?: boolean;
 };
 
-export const members: Member[] = [
-  { id: "u1", name: "Sudev", role: "Owner", avatar: "SD", email: "sudev@treats24.com" },
-];
+export const members: Member[] = [];
 
 let activeMembers: Member[] = members;
 
 export function setActiveMembers(list: Member[]) {
-  activeMembers = list.length ? list : members;
+  activeMembers = list;
 }
 
 export type ProjectTemplate = "scrum" | "kanban" | "bug-tracking" | "documentation";

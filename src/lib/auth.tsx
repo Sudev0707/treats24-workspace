@@ -7,8 +7,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { getAuthRedirectUrl, getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
+
+import { signOutOnServer } from "@/lib/auth-oauth-fn";
+import {
+  clearSupabaseAuthStorage,
+  getAuthRedirectUrl,
+  getSupabaseClient,
+  isSupabaseConfigured,
+  resetSupabaseClient,
+} from "@/lib/supabase";
 
 type AuthContextValue = {
   session: Session | null;
@@ -26,20 +34,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
+    const client = getSupabaseClient();
+    if (!client) {
       setIsLoading(false);
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    const supabaseClient: SupabaseClient = client;
+
+    async function loadAuthState() {
+      const {
+        data: { session: currentSession },
+      } = await supabaseClient.auth.getSession();
       setSession(currentSession);
       setIsLoading(false);
-    });
+    }
+
+    void loadAuthState();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setIsLoading(false);
     });
@@ -53,10 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
     }
 
+    clearSupabaseAuthStorage();
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: getAuthRedirectUrl(),
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
 
@@ -65,8 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    await signOutOnServer();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    clearSupabaseAuthStorage();
+    resetSupabaseClient();
     setSession(null);
   }, []);
 
@@ -99,6 +123,10 @@ export function isAuthRoute(pathname: string) {
 
 export function isOnboardingRoute(pathname: string) {
   return pathname === "/onboarding";
+}
+
+export function isProfileRoute(pathname: string) {
+  return pathname === "/profile";
 }
 
 export function isBareRoute(pathname: string) {

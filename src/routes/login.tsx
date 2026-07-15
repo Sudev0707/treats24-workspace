@@ -1,13 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { CheckSquare, LayoutGrid, Users } from "lucide-react";
+import { toast } from "sonner";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { useAuth } from "@/lib/auth";
 
+type LoginSearch = {
+  error?: string;
+};
+
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [{ title: "Sign in — Treats24 Workspace" }],
+  }),
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    error: typeof search.error === "string" ? search.error : undefined,
   }),
   component: LoginPage,
 });
@@ -15,12 +23,21 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const { user, isLoading, isConfigured } = useAuth();
+  const { error } = Route.useSearch();
+  const shownError = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!error || error === shownError.current) return;
+    shownError.current = error;
+    toast.error("Sign in failed", { description: error });
+    navigate({ to: "/login", search: {}, replace: true });
+  }, [error, navigate]);
 
   useEffect(() => {
     if (!isLoading && user) {
-      navigate({ to: "/" });
+      window.location.replace("/");
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading]);
 
   if (isLoading && isConfigured) {
     return (

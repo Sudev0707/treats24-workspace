@@ -15,7 +15,7 @@ import { TicketKeyLink } from "@/components/ticket/ticket-ui";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth";
-import { getMember, getProjectById, isDoneStatus } from "@/lib/data";
+import { getProjectById, isDoneStatus } from "@/lib/data";
 import { useWorkspace } from "@/lib/workspace-store";
 
 export const Route = createFileRoute("/profile")({
@@ -25,18 +25,26 @@ export const Route = createFileRoute("/profile")({
 
 function ProfilePage() {
   const { user: authUser } = useAuth();
-  const { tasks, issues, projects, activity, currentUserId, members, updateProfile } = useWorkspace();
-  const user = members.find((member) => member.id === currentUserId) ?? getMember(currentUserId);
-  const email = user.email.trim() || authUser?.email?.trim() || "";
+  const { tasks, issues, projects, activity, currentUserId, currentMember, updateProfile } = useWorkspace();
+  const user = currentMember;
+  const email = user.email?.trim() || authUser?.email?.trim() || "";
 
-  function saveUsername(name: string) {
-    updateProfile({ name, avatar: name.slice(0, 2).toUpperCase() });
-    toast.success("Username updated");
+  async function saveUsername(name: string) {
+    try {
+      await updateProfile({ name, avatar: name.slice(0, 2).toUpperCase() });
+      toast.success("Username updated");
+    } catch {
+      // persistRequired already shows the error toast
+    }
   }
 
-  function saveJobTitle(role: string) {
-    updateProfile({ role });
-    toast.success("Job title updated");
+  async function saveJobTitle(role: string) {
+    try {
+      await updateProfile({ role });
+      toast.success("Job title updated");
+    } catch {
+      // persistRequired already shows the error toast
+    }
   }
 
   const stats = useMemo(() => {

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,14 +28,12 @@ export const Route = createFileRoute("/auth/callback")({
 });
 
 function AuthCallbackPage() {
-  const navigate = useNavigate();
   const search = Route.useSearch();
   const started = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (started.current) return;
-    started.current = true;
 
     async function completeSignIn() {
       const oauthError = search.error_description ?? search.error;
@@ -57,23 +55,13 @@ function AuthCallbackPage() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          try {
-            const member = await ensureProfileForUser(session.user);
-            navigate({ to: getPostAuthRedirect(member, session.user.id), replace: true });
-          } catch {
-            navigate({ to: "/", replace: true });
-          }
-          return;
+        if (!session?.user) {
+          setError("No authorization code found. Please sign in again from the login page.");
         }
-
-        setError("No authorization code found. Please try again.");
         return;
       }
 
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-
       if (exchangeError) {
         setError(exchangeError.message);
         return;
@@ -81,24 +69,27 @@ function AuthCallbackPage() {
 
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
 
-      if (!user) {
-        setError("Signed in, but no user was returned. Please try again.");
+      if (userError || !user) {
+        setError(userError?.message ?? "Signed in, but no user was returned. Please try again.");
         return;
       }
 
+      started.current = true;
+
       try {
         const member = await ensureProfileForUser(user);
-        navigate({ to: getPostAuthRedirect(member, user.id), replace: true });
+        window.location.replace(getPostAuthRedirect(member, user.id));
       } catch (profileError) {
         console.error(profileError);
-        navigate({ to: "/", replace: true });
+        window.location.replace("/onboarding");
       }
     }
 
     void completeSignIn();
-  }, [navigate, search.code, search.error, search.error_description]);
+  }, [search.code, search.error, search.error_description]);
 
   useEffect(() => {
     if (error) {
@@ -111,13 +102,12 @@ function AuthCallbackPage() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f5eefd] px-4">
         <p className="text-sm font-medium text-foreground">Something went wrong</p>
         <p className="max-w-sm text-center text-sm text-muted-foreground">{error}</p>
-        <button
-          type="button"
-          onClick={() => navigate({ to: "/login" })}
-          className="text-sm text-primary hover:underline"
-        >
+        <p className="max-w-sm text-center text-xs text-muted-foreground">
+          Start a fresh sign-in from the login page. Do not reuse an older Google link.
+        </p>
+        <a href="/login" className="text-sm text-primary hover:underline">
           Back to sign in
-        </button>
+        </a>
       </div>
     );
   }

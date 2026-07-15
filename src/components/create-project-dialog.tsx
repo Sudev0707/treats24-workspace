@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/select";
 import { useWorkspace } from "@/lib/workspace-store";
 import {
-  CURRENT_USER_ID,
   generateProjectKey,
   priorities,
   projectCategories,
@@ -77,14 +76,14 @@ type CreateProjectDialogProps = {
 
 export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateProjectDialogProps) {
   const navigate = useNavigate();
-  const { projects, createProject, members } = useWorkspace();
+  const { projects, createProject, members, currentUserId } = useWorkspace();
 
   const [template, setTemplate] = useState<ProjectTemplate>("kanban");
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [keyTouched, setKeyTouched] = useState(false);
   const [description, setDescription] = useState("");
-  const [leadId, setLeadId] = useState(CURRENT_USER_ID);
+  const [leadId, setLeadId] = useState(currentUserId);
   const [category, setCategory] = useState<(typeof projectCategories)[number]>("Software");
   const [priority, setPriority] = useState<Priority>("Medium");
   const [dueDate, setDueDate] = useState(
@@ -96,6 +95,7 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const existingKeys = useMemo(() => projects.map((p) => p.key), [projects]);
+  const leadSelectValue = members.some((member) => member.id === leadId) ? leadId : undefined;
 
   useEffect(() => {
     if (open && !keyTouched && name.trim()) {
@@ -106,9 +106,9 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
   useEffect(() => {
     if (open) {
       setTemplate("kanban");
-      setLeadId(CURRENT_USER_ID);
+      setLeadId(currentUserId);
     }
-  }, [open]);
+  }, [open, currentUserId]);
 
   const resetForm = () => {
     setName("");
@@ -116,7 +116,7 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
     setKeyTouched(false);
     setDescription("");
     setTemplate("kanban");
-    setLeadId(CURRENT_USER_ID);
+    setLeadId(currentUserId);
     setCategory("Software");
     setPriority("Medium");
     setDueDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
@@ -235,7 +235,7 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 
           <div className="mb-4">
             <Label className="text-xs text-muted-foreground">Project lead *</Label>
-            <Select value={leadId} onValueChange={setLeadId}>
+            <Select value={leadSelectValue} onValueChange={setLeadId}>
               <SelectTrigger className="mt-1.5 rounded-xl">
                 <SelectValue />
               </SelectTrigger>

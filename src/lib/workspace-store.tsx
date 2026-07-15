@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import {
   CURRENT_USER_ID,
-  members as fallbackMembers,
+  UNASSIGNED_ID,
   setActiveMembers,
   type Member,
   type Project,
@@ -44,6 +45,9 @@ import {
   completeOnboardingInDb,
   ensureProfileForUser,
   ensureProjectInDb,
+  collectReferencedMemberIds,
+  fetchProfileById,
+  fetchProfilesByIds,
   fetchWorkspaceData,
   formatDbError,
   generateEntityId,
@@ -179,7 +183,8 @@ type WorkspaceContextValue = {
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   deleteNotification: (id: string) => void;
-  updateProfile: (input: UpdateProfileInput) => void;
+  updateProfile: (input: UpdateProfileInput) => Promise<void>;
+  currentMember: Member;
   completeOnboarding: (input: { name: string; role: string }) => Promise<void>;
   linkWorkItem: (sourceId: string, targetId: string) => void;
   unlinkWorkItem: (sourceId: string, targetId: string) => void;
@@ -233,7 +238,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [queries, setQueries] = useState<SavedQuery[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
-  const [members, setMembers] = useState<Member[]>(fallbackMembers);
+  const [members, setMembers] = useState<Member[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
   const [documents, setDocuments] = useState<Doc[]>([]);
   const [projectNotes, setProjectNotes] = useState<ProjectNote[]>([]);
@@ -250,19 +255,35 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Profile setup failed:", error);
     }
-    const data = await fetchWorkspaceData();
-    setProjects(data.projects);
-    setTasks(data.tasks);
-    setIssues(data.issues);
-    setQueries(data.queries);
-    setActivity(data.activity);
-    setReleases(data.releases);
-    setDocuments(data.documents);
-    setProjectNotes(data.projectNotes);
-    setNotifications(data.notifications);
-    const loadedMembers = data.members.length ? data.members : fallbackMembers;
+
+    let loadedMembers: Member[] = [];
+    try {
+      const profile = await fetchProfileById(user!.id);
+      if (profile) loadedMembers = [profile];
+    } catch (error) {
+      console.warn("Could not load current user profile:", error);
+    }
+
+    try {
+      const data = await fetchWorkspaceData();
+      setProjects(data.projects);
+      setTasks(data.tasks);
+      setIssues(data.issues);
+      setQueries(data.queries);
+      setActivity(data.activity);
+      setReleases(data.releases);
+      setDocuments(data.documents);
+      setProjectNotes(data.projectNotes);
+      setNotifications(data.notifications);
+      loadedMembers = data.members.length ? data.members : loadedMembers;
+    } catch (error) {
+      console.error("Workspace data load failed:", error);
+      toast.error("Failed to load workspace data", {
+        description: formatDbError(error),
+      });
+    }
+
     setMembers(loadedMembers);
-    setActiveMembers(loadedMembers);
     setIsPersisted(true);
   }, [user]);
 
@@ -276,6 +297,91 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [canPersist, loadWorkspaceData]);
 
+  const mergeMembers = useCallback((incoming: Member[]) => {
+    if (!incoming.length) return;
+    setMembers((prev) => {
+      const next = [...prev];
+      let changed = false;
+      for (const profile of incoming) {
+        if (!next.some((member) => member.id === profile.id)) {
+          next.push(profile);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    setActiveMembers(members);
+  }, [members]);
+
+  const attemptedMemberIdsRef = useRef(new Set<string>());
+
+  const ensureMembersCached = useCallback(
+    async (ids: string[]) => {
+      if (!canPersist) return;
+      const missing = ids.filter(
+        (id) =>
+          id &&
+          id !== UNASSIGNED_ID &&
+          !members.some((member) => member.id === id) &&
+          !attemptedMemberIdsRef.current.has(id),
+      );
+      if (!missing.length) return;
+
+      for (const id of missing) attemptedMemberIdsRef.current.add(id);
+
+      try {
+        const fetched = await fetchProfilesByIds(missing);
+        mergeMembers(fetched);
+      } catch (error) {
+        console.warn("Could not resolve member profiles:", error);
+      }
+    },
+    [canPersist, members, mergeMembers],
+  );
+
+  useEffect(() => {
+    if (!canPersist || isLoading) return;
+
+    const referencedIds = collectReferencedMemberIds({
+      projects,
+      tasks,
+      issues,
+      queries,
+      activity,
+      projectNotes,
+    });
+    const missingIds = referencedIds.filter(
+      (id) => !members.some((member) => member.id === id) && !attemptedMemberIdsRef.current.has(id),
+    );
+    if (!missingIds.length) return;
+
+    for (const id of missingIds) attemptedMemberIdsRef.current.add(id);
+
+    void fetchProfilesByIds(missingIds)
+      .then((fetched) => mergeMembers(fetched))
+      .catch((error) => {
+        console.warn("Could not resolve member profiles:", error);
+      });
+  }, [
+    canPersist,
+    isLoading,
+    projects,
+    tasks,
+    issues,
+    queries,
+    activity,
+    projectNotes,
+    members,
+    mergeMembers,
+  ]);
+
+  useEffect(() => {
+    attemptedMemberIdsRef.current.clear();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setIsLoading(false);
@@ -288,8 +394,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setIsLoading(false);
       setIsPersisted(false);
-      setMembers(fallbackMembers);
-      setActiveMembers(fallbackMembers);
+      setMembers([]);
       return;
     }
 
@@ -396,10 +501,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }, "Failed to create task");
       setTasks((prev) => [task, ...prev]);
       addActivity("created task", input.parentId ? `${task.id} under ${input.parentId}` : task.id);
+      void ensureMembersCached([task.assigneeId, task.reporterId]);
       toast.success(`${task.id} created`);
       return task;
     },
-    [projects, tasks, issues, addActivity, currentUserId, persistRequired],
+    [projects, tasks, issues, addActivity, currentUserId, persistRequired, ensureMembersCached],
   );
 
   const updateTask = useCallback(
@@ -407,8 +513,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
       if (patch.status) addActivity("moved", `${id} to ${patch.status}`);
       void persist(() => updateTaskInDb(id, patch));
+      void ensureMembersCached(
+        [patch.assigneeId, patch.reporterId].filter((id): id is string => Boolean(id)),
+      );
     },
-    [addActivity, persist],
+    [addActivity, persist, ensureMembersCached],
   );
 
   const deleteTask = useCallback(
@@ -446,10 +555,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }, "Failed to create issue");
       setIssues((prev) => [issue, ...prev]);
       addActivity("opened", input.parentId ? `${issue.id} under ${input.parentId}` : issue.id);
+      void ensureMembersCached([issue.assigneeId, issue.reporterId]);
       toast.success(`${issue.id} created`);
       return issue;
     },
-    [projects, tasks, issues, addActivity, currentUserId, persistRequired],
+    [projects, tasks, issues, addActivity, currentUserId, persistRequired, ensureMembersCached],
   );
 
   const updateIssue = useCallback(
@@ -457,8 +567,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
       if (patch.status) addActivity("updated", `${id} → ${patch.status}`);
       void persist(() => updateIssueInDb(id, patch));
+      void ensureMembersCached(
+        [patch.assigneeId, patch.reporterId].filter((id): id is string => Boolean(id)),
+      );
     },
-    [addActivity, persist],
+    [addActivity, persist, ensureMembersCached],
   );
 
   const deleteIssue = useCallback(
@@ -494,10 +607,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       await persistRequired(() => saveProject(project), "Failed to create project");
       setProjects((prev) => [project, ...prev]);
       addActivity("created project", project.name);
+      void ensureMembersCached([project.leadId, ...project.memberIds]);
       toast.success(`Project ${project.key} created`);
       return project;
     },
-    [projects, addActivity, persistRequired],
+    [projects, addActivity, persistRequired, ensureMembersCached],
   );
 
   const updateProject = useCallback(
@@ -505,8 +619,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
       if (patch.status || patch.name) addActivity("updated project", patch.name ?? id);
       void persist(() => updateProjectInDb(id, patch));
+      void ensureMembersCached(
+        [patch.leadId, ...(patch.memberIds ?? [])].filter((memberId): memberId is string => Boolean(memberId)),
+      );
     },
-    [addActivity, persist],
+    [addActivity, persist, ensureMembersCached],
   );
 
   const deleteProject = useCallback(
@@ -700,26 +817,45 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProfile = useCallback(
-    (input: UpdateProfileInput) => {
+    async (input: UpdateProfileInput) => {
       setMembers((prev) => {
-        const next = prev.map((m) => (m.id === currentUserId ? { ...m, ...input } : m));
-        setActiveMembers(next);
+        const existing = prev.find((member) => member.id === currentUserId);
+        const updated: Member = existing
+          ? { ...existing, ...input }
+          : {
+              id: currentUserId,
+              name: input.name ?? "",
+              role: input.role ?? "",
+              avatar: input.avatar ?? "?",
+              email: input.email ?? user?.email ?? "",
+            };
+        const next = existing
+          ? prev.map((member) => (member.id === currentUserId ? updated : member))
+          : [...prev, updated];
         return next;
       });
-      void persist(() => updateProfileInDb(currentUserId, input));
+      await persistRequired(() => updateProfileInDb(currentUserId, input));
     },
-    [currentUserId, persist],
+    [currentUserId, persistRequired, user?.email],
   );
+
+  const currentMember = useMemo((): Member => {
+    const found = members.find((member) => member.id === currentUserId);
+    if (found) return found;
+    return {
+      id: currentUserId,
+      name: "",
+      role: "",
+      avatar: "?",
+      email: user?.email ?? "",
+    };
+  }, [members, currentUserId, user?.email]);
 
   const completeOnboarding = useCallback(
     async (input: { name: string; role: string }) => {
       if (!canPersist) return;
       const updated = await completeOnboardingInDb(currentUserId, input);
-      setMembers((prev) => {
-        const next = prev.map((member) => (member.id === currentUserId ? updated : member));
-        setActiveMembers(next);
-        return next;
-      });
+      setMembers((prev) => prev.map((member) => (member.id === currentUserId ? updated : member)));
     },
     [canPersist, currentUserId],
   );
@@ -829,6 +965,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       projectNotes,
       notifications,
       currentUserId,
+      currentMember,
       isLoading,
       isPersisted,
       createTask,
@@ -874,6 +1011,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       projectNotes,
       notifications,
       currentUserId,
+      currentMember,
       isLoading,
       isPersisted,
       createTask,
