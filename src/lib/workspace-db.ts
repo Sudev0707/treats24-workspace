@@ -340,7 +340,7 @@ function mapProjectNote(row: {
   };
 }
 
-function mapNotification(row: {
+export function mapNotification(row: {
   id: string;
   title: string;
   message: string;
@@ -843,14 +843,14 @@ export async function deleteProjectNoteInDb(id: string) {
 
 export async function saveNotification(notification: Notification, userId: string, workspaceId = DEFAULT_WORKSPACE_ID) {
   const supabase = requireClient();
-  const { error } = await supabase.from("notifications").insert({
-    id: notification.id,
-    workspace_id: workspaceId,
-    user_id: userId,
-    title: notification.title,
-    message: notification.message,
-    type: notification.type,
-    unread: notification.unread,
+  const { error } = await supabase.rpc("create_workspace_notification", {
+    p_id: notification.id,
+    p_workspace_id: workspaceId,
+    p_user_id: userId,
+    p_title: notification.title,
+    p_message: notification.message,
+    p_type: notification.type,
+    p_unread: notification.unread,
   });
   if (error) throw error;
 }

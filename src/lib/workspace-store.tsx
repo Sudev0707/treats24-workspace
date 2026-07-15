@@ -32,7 +32,7 @@ import {
   type ProjectNote,
   findWorkItem,
 } from "@/lib/data";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import {
   deleteDocumentInDb,
   deleteIssueInDb,
@@ -51,7 +51,9 @@ import {
   fetchWorkspaceData,
   formatDbError,
   generateEntityId,
+  mapNotification,
   markAllNotificationsReadInDb,
+  saveNotification,
   saveActivity,
   saveDocument,
   saveIssue,
@@ -230,6 +232,39 @@ const PROJECT_COLORS = [
   "from-[#ffab00] to-[#ff991f]",
   "from-[#ff5630] to-[#de350b]",
 ];
+
+type TicketChangeKind = "status" | "priority";
+
+function memberDisplayName(members: Member[], id: string): string {
+  return members.find((member) => member.id === id)?.name || "Someone";
+}
+
+function ticketStakeholderIds(assigneeId: string, reporterId: string, actorId: string): string[] {
+  return [...new Set([assigneeId, reporterId])].filter(
+    (id) => id && id !== UNASSIGNED_ID && id !== actorId,
+  );
+}
+
+function buildTicketChangeNotification(
+  ticketId: string,
+  kind: TicketChangeKind,
+  from: string,
+  to: string,
+  actorName: string,
+): Pick<Notification, "title" | "message" | "type"> {
+  if (kind === "status") {
+    return {
+      title: `${ticketId} status changed`,
+      message: `${actorName} changed status from ${from} to ${to}`,
+      type: "status",
+    };
+  }
+  return {
+    title: `${ticketId} priority changed`,
+    message: `${actorName} changed priority from ${from} to ${to}`,
+    type: "priority",
+  };
+}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
@@ -424,6 +459,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
   }, [user, authLoading, loadWorkspaceData]);
 
+  useEffect(() => {
+    if (!canPersist) return;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`notifications:${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            title: string;
+            message: string;
+            type: string;
+            unread: boolean;
+            created_at: string;
+          };
+          const notification = mapNotification(row);
+          setNotifications((prev) => {
+            if (prev.some((item) => item.id === notification.id)) return prev;
+            return [notification, ...prev];
+          });
+          toast.info(notification.title, { description: notification.message });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [canPersist, currentUserId]);
+
   const persist = useCallback(
     async (operation: () => Promise<void>) => {
       if (!canPersist) return;
@@ -476,6 +551,39 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [currentUserId, persist],
   );
 
+  const notifyTicketStakeholders = useCallback(
+    (
+      ticket: { id: string; assigneeId: string; reporterId: string },
+      kind: TicketChangeKind,
+      from: string,
+      to: string,
+    ) => {
+      if (from === to) return;
+
+      const actorName = memberDisplayName(members, currentUserId);
+      const content = buildTicketChangeNotification(ticket.id, kind, from, to, actorName);
+      const recipients = ticketStakeholderIds(ticket.assigneeId, ticket.reporterId, currentUserId);
+
+      for (const userId of recipients) {
+        const notification: Notification = {
+          id: generateEntityId("n"),
+          ...content,
+          time: "just now",
+          unread: true,
+        };
+
+        void persist(async () => {
+          try {
+            await saveNotification(notification, userId);
+          } catch (error) {
+            console.warn("Could not deliver ticket notification:", error);
+          }
+        });
+      }
+    },
+    [members, currentUserId, persist],
+  );
+
   const createTask = useCallback(
     async (input: CreateTaskInput): Promise<Task> => {
       const project = requireProject(projects, input.projectId);
@@ -510,14 +618,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const updateTask = useCallback(
     (id: string, patch: Partial<Task>) => {
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+      setTasks((prev) => {
+        const task = prev.find((t) => t.id === id);
+        if (task) {
+          if (patch.status !== undefined && patch.status !== task.status) {
+            notifyTicketStakeholders(task, "status", task.status, patch.status);
+          }
+          if (patch.priority !== undefined && patch.priority !== task.priority) {
+            notifyTicketStakeholders(task, "priority", task.priority, patch.priority);
+          }
+        }
+        return prev.map((t) => (t.id === id ? { ...t, ...patch } : t));
+      });
       if (patch.status) addActivity("moved", `${id} to ${patch.status}`);
       void persist(() => updateTaskInDb(id, patch));
       void ensureMembersCached(
         [patch.assigneeId, patch.reporterId].filter((id): id is string => Boolean(id)),
       );
     },
-    [addActivity, persist, ensureMembersCached],
+    [addActivity, persist, ensureMembersCached, notifyTicketStakeholders],
   );
 
   const deleteTask = useCallback(
@@ -564,14 +683,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const updateIssue = useCallback(
     (id: string, patch: Partial<Issue>) => {
-      setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+      setIssues((prev) => {
+        const issue = prev.find((i) => i.id === id);
+        if (issue) {
+          if (patch.status !== undefined && patch.status !== issue.status) {
+            notifyTicketStakeholders(issue, "status", issue.status, patch.status);
+          }
+          if (patch.severity !== undefined && patch.severity !== issue.severity) {
+            notifyTicketStakeholders(issue, "priority", issue.severity, patch.severity);
+          }
+        }
+        return prev.map((i) => (i.id === id ? { ...i, ...patch } : i));
+      });
       if (patch.status) addActivity("updated", `${id} → ${patch.status}`);
       void persist(() => updateIssueInDb(id, patch));
       void ensureMembersCached(
         [patch.assigneeId, patch.reporterId].filter((id): id is string => Boolean(id)),
       );
     },
-    [addActivity, persist, ensureMembersCached],
+    [addActivity, persist, ensureMembersCached, notifyTicketStakeholders],
   );
 
   const deleteIssue = useCallback(

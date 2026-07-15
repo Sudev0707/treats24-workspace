@@ -146,7 +146,7 @@ export type Notification = {
   title: string;
   message: string;
   time: string;
-  type: "assigned" | "comment" | "status" | "release" | "due";
+  type: "assigned" | "comment" | "status" | "priority" | "release" | "due";
   unread: boolean;
 };
 
