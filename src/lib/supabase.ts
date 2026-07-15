@@ -62,14 +62,36 @@ export function resetSupabaseClient(): void {
   client = null;
 }
 
+function getConfiguredAppUrl(): string | null {
+  const appUrl =
+    import.meta.env.VITE_APP_URL_PRODUCTION ?? import.meta.env.VITE_APP_URL;
+  return appUrl ? appUrl.replace(/\/$/, "") : null;
+}
+
+function isLocalAppUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 export function getAuthRedirectUrl(path = "/auth/callback"): string {
+  const configuredUrl = getConfiguredAppUrl();
+
+  // Prefer the configured production URL so OAuth always redirects to live.
+  if (configuredUrl && !isLocalAppUrl(configuredUrl)) {
+    return `${configuredUrl}${path}`;
+  }
+
   if (typeof window !== "undefined") {
     return `${window.location.origin}${path}`;
   }
-  const appUrl =
-    import.meta.env.VITE_APP_URL_PRODUCTION ?? import.meta.env.VITE_APP_URL;
-  if (appUrl) {
-    return `${appUrl.replace(/\/$/, "")}${path}`;
+
+  if (configuredUrl) {
+    return `${configuredUrl}${path}`;
   }
+
   return path;
 }
