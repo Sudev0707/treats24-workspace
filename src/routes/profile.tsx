@@ -86,9 +86,9 @@ function ProfilePage() {
                   {user.avatar}
                 </AvatarFallback>
               </Avatar>
-              <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-secondary text-muted-foreground">
+              {/* <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-secondary text-muted-foreground">
                 <Camera className="h-3.5 w-3.5" />
-              </span>
+              </span> */}
             </div>
             <div className="min-w-0 flex-1 pb-1">
               <EditableField
@@ -108,9 +108,9 @@ function ProfilePage() {
                 required
               />
             </div>
-            <JiraBtn variant="default" size="sm">
+            {/* <JiraBtn variant="default" size="sm">
               Edit photo
-            </JiraBtn>
+            </JiraBtn> */}
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">

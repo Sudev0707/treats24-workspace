@@ -102,7 +102,7 @@ export function EditableField({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "group inline-flex max-w-full items-center gap-2 text-left font-display text-xl font-semibold text-foreground transition-colors hover:text-primary/90",
+          "group inline-flex max-w-full items-center gap-2 text-left font-display text-2xl font-semibold tracking-tight text-foreground transition-colors hover:text-primary/90",
           isEmpty && "text-muted-foreground",
           className,
         )}
@@ -139,7 +139,7 @@ export function EditableField({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "group flex h-8 w-full items-center justify-between rounded border border-transparent bg-secondary/40 px-3 text-left text-sm transition-colors hover:border-border hover:bg-secondary/70",
+          "group flex h-9 w-full items-center justify-between rounded-lg border border-border/60 bg-secondary/30 px-3 text-left text-sm transition-all hover:border-border hover:bg-secondary/50 hover:shadow-soft",
           isEmpty && "text-muted-foreground",
           className,
         )}
@@ -166,7 +166,7 @@ export function ReadOnlyField({ label, value, hint, emptyText = "—" }: ReadOnl
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <div
         className={cn(
-          "flex h-8 items-center rounded border border-border bg-secondary/30 px-3 text-sm",
+          "flex h-9 items-center rounded-lg border border-border/60 bg-secondary/20 px-3 text-sm",
           value.trim() ? "text-foreground" : "text-muted-foreground",
         )}
         aria-readonly="true"
