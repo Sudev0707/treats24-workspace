@@ -28,6 +28,7 @@ import {
   type ReleaseStatus,
   type Doc,
   type Notification,
+  type ProjectNote,
   findWorkItem,
 } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -36,6 +37,7 @@ import {
   deleteIssueInDb,
   deleteNotificationInDb,
   deleteProjectInDb,
+  deleteProjectNoteInDb,
   deleteQueryInDb,
   deleteReleaseInDb,
   deleteTaskInDb,
@@ -48,6 +50,7 @@ import {
   saveDocument,
   saveIssue,
   saveProject,
+  saveProjectNote,
   saveQuery,
   saveRelease,
   saveTask,
@@ -56,6 +59,7 @@ import {
   updateNotificationInDb,
   updateProfileInDb,
   updateProjectInDb,
+  updateProjectNoteInDb,
   updateQueryInDb,
   updateReleaseInDb,
   updateTaskInDb,
@@ -127,6 +131,12 @@ type CreateDocumentInput = {
   author?: string;
 };
 
+type CreateProjectNoteInput = {
+  projectId: string;
+  title?: string;
+  body?: string;
+};
+
 type UpdateProfileInput = Partial<Pick<Member, "name" | "role" | "avatar" | "email">>;
 
 type WorkspaceContextValue = {
@@ -138,6 +148,7 @@ type WorkspaceContextValue = {
   members: Member[];
   releases: Release[];
   documents: Doc[];
+  projectNotes: ProjectNote[];
   notifications: Notification[];
   currentUserId: string;
   isLoading: boolean;
@@ -160,6 +171,9 @@ type WorkspaceContextValue = {
   createDocument: (input: CreateDocumentInput) => Doc;
   updateDocument: (id: string, patch: Partial<Doc>) => void;
   deleteDocument: (id: string) => void;
+  createProjectNote: (input: CreateProjectNoteInput) => ProjectNote;
+  updateProjectNote: (id: string, patch: Partial<ProjectNote>) => void;
+  deleteProjectNote: (id: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   deleteNotification: (id: string) => void;
@@ -220,6 +234,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>(fallbackMembers);
   const [releases, setReleases] = useState<Release[]>([]);
   const [documents, setDocuments] = useState<Doc[]>([]);
+  const [projectNotes, setProjectNotes] = useState<ProjectNote[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured);
   const [isPersisted, setIsPersisted] = useState(false);
@@ -237,6 +252,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActivity(data.activity);
     setReleases(data.releases);
     setDocuments(data.documents);
+    setProjectNotes(data.projectNotes);
     setNotifications(data.notifications);
     const loadedMembers = data.members.length ? data.members : fallbackMembers;
     setMembers(loadedMembers);
@@ -465,6 +481,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setProjects((prev) => prev.filter((p) => p.id !== id));
       setTasks((prev) => prev.filter((t) => t.projectId !== id));
       setIssues((prev) => prev.filter((i) => i.projectId !== id));
+      setProjectNotes((prev) => prev.filter((n) => n.projectId !== id));
       addActivity("deleted project", project?.name ?? id);
       toast.success("Project deleted");
       void persist(() => deleteProjectInDb(id));
@@ -584,6 +601,45 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setDocuments((prev) => prev.filter((d) => d.id !== id));
       toast.success("Document deleted");
       void persist(() => deleteDocumentInDb(id));
+    },
+    [persist],
+  );
+
+  const createProjectNote = useCallback(
+    (input: CreateProjectNoteInput): ProjectNote => {
+      const now = new Date().toISOString();
+      const note: ProjectNote = {
+        id: generateEntityId("note"),
+        projectId: input.projectId,
+        title: input.title ?? "Untitled note",
+        body: input.body ?? "",
+        authorId: currentUserId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setProjectNotes((prev) => [note, ...prev]);
+      addActivity("added note", note.title);
+      toast.success("Note created");
+      void persist(() => saveProjectNote(note));
+      return note;
+    },
+    [currentUserId, addActivity, persist],
+  );
+
+  const updateProjectNote = useCallback(
+    (id: string, patch: Partial<ProjectNote>) => {
+      const withDate = { ...patch, updatedAt: new Date().toISOString() };
+      setProjectNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...withDate } : n)));
+      void persist(() => updateProjectNoteInDb(id, withDate));
+    },
+    [persist],
+  );
+
+  const deleteProjectNote = useCallback(
+    (id: string) => {
+      setProjectNotes((prev) => prev.filter((n) => n.id !== id));
+      toast.success("Note deleted");
+      void persist(() => deleteProjectNoteInDb(id));
     },
     [persist],
   );
@@ -736,6 +792,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       members,
       releases,
       documents,
+      projectNotes,
       notifications,
       currentUserId,
       isLoading,
@@ -758,6 +815,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       createDocument,
       updateDocument,
       deleteDocument,
+      createProjectNote,
+      updateProjectNote,
+      deleteProjectNote,
       markNotificationRead,
       markAllNotificationsRead,
       deleteNotification,
@@ -777,6 +837,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       members,
       releases,
       documents,
+      projectNotes,
       notifications,
       currentUserId,
       isLoading,
@@ -799,6 +860,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       createDocument,
       updateDocument,
       deleteDocument,
+      createProjectNote,
+      updateProjectNote,
+      deleteProjectNote,
       markNotificationRead,
       markAllNotificationsRead,
       deleteNotification,

@@ -11,6 +11,7 @@ import type {
   SavedQuery,
   Task,
   TicketAttachment,
+  ProjectNote,
 } from "@/lib/data";
 import { markOnboardingCompleteLocally } from "@/lib/onboarding";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -31,6 +32,7 @@ type WorkspaceData = {
   members: Member[];
   releases: Release[];
   documents: Doc[];
+  projectNotes: ProjectNote[];
   notifications: Notification[];
 };
 
@@ -242,6 +244,26 @@ function mapDocument(row: {
   };
 }
 
+function mapProjectNote(row: {
+  id: string;
+  project_id: string;
+  title: string;
+  body: string;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+}): ProjectNote {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    body: row.body,
+    authorId: row.author_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapNotification(row: {
   id: string;
   title: string;
@@ -294,6 +316,7 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     activityRes,
     releasesRes,
     documentsRes,
+    projectNotesRes,
     notificationsRes,
   ] = await Promise.all([
     supabase
@@ -307,6 +330,7 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     supabase.from("activities").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20),
     supabase.from("releases").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("documents").select("*").eq("workspace_id", workspaceId).order("updated_at", { ascending: false }),
+    supabase.from("project_notes").select("*").eq("workspace_id", workspaceId).order("updated_at", { ascending: false }),
     supabase.from("notifications").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(50),
   ]);
 
@@ -318,6 +342,7 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
   if (activityRes.error) throw activityRes.error;
   if (releasesRes.error) throw releasesRes.error;
   if (documentsRes.error) throw documentsRes.error;
+  if (projectNotesRes.error) throw projectNotesRes.error;
   if (notificationsRes.error) throw notificationsRes.error;
 
   const members = (profilesRes.data ?? [])
@@ -337,6 +362,7 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     activity: (activityRes.data ?? []).map(mapActivity),
     releases: (releasesRes.data ?? []).map(mapRelease),
     documents: (documentsRes.data ?? []).map(mapDocument),
+    projectNotes: (projectNotesRes.data ?? []).map(mapProjectNote),
     notifications: (notificationsRes.data ?? []).map(mapNotification),
   };
 }
@@ -614,6 +640,42 @@ export async function updateDocumentInDb(id: string, patch: Partial<Doc>) {
 export async function deleteDocumentInDb(id: string) {
   const supabase = requireClient();
   const { error } = await supabase.from("documents").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function saveProjectNote(note: ProjectNote, workspaceId = DEFAULT_WORKSPACE_ID) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("project_notes").insert({
+    id: note.id,
+    workspace_id: workspaceId,
+    project_id: note.projectId,
+    title: note.title,
+    body: note.body,
+    author_id: note.authorId,
+    created_at: note.createdAt,
+    updated_at: note.updatedAt,
+  });
+  if (error) throw error;
+}
+
+export async function updateProjectNoteInDb(id: string, patch: Partial<ProjectNote>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.body !== undefined) row.body = patch.body;
+  if (patch.projectId !== undefined) row.project_id = patch.projectId;
+  if (patch.authorId !== undefined) row.author_id = patch.authorId;
+  if (patch.updatedAt !== undefined) row.updated_at = patch.updatedAt;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("project_notes").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteProjectNoteInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("project_notes").delete().eq("id", id);
   if (error) throw error;
 }
 

@@ -8,11 +8,12 @@ import {
   Filter,
   Star,
   ChevronRight,
+  StickyNote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/lib/data";
 
-export type ProjectView = "summary" | "list" | "board" | "backlog" | "issues" | "filters";
+export type ProjectView = "summary" | "list" | "board" | "backlog" | "issues" | "filters" | "notes";
 
 const navItems: { id: ProjectView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "summary", label: "Summary", icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const navItems: { id: ProjectView; label: string; icon: React.ComponentType<{ cl
   { id: "board", label: "Board", icon: LayoutGrid },
   { id: "backlog", label: "Backlog", icon: ListOrdered },
   { id: "issues", label: "Issues", icon: Bug },
+  { id: "notes", label: "Notes", icon: StickyNote },
   { id: "filters", label: "Filters", icon: Filter },
 ];
 
@@ -29,9 +31,10 @@ type ProjectSidebarProps = {
   onViewChange: (view: ProjectView) => void;
   issueCount: number;
   taskCount: number;
+  noteCount?: number;
 };
 
-export function ProjectSidebar({ project, activeView, onViewChange, issueCount, taskCount }: ProjectSidebarProps) {
+export function ProjectSidebar({ project, activeView, onViewChange, issueCount, taskCount, noteCount = 0 }: ProjectSidebarProps) {
   return (
     <aside className="w-full shrink-0 lg:w-56">
       <div className="rounded-md border border-border bg-card shadow-soft lg:sticky lg:top-20">
@@ -75,6 +78,9 @@ export function ProjectSidebar({ project, activeView, onViewChange, issueCount, 
                 <span className="flex-1 text-left">{item.label}</span>
                 {item.id === "issues" && issueCount > 0 && (
                   <span className="rounded-full bg-secondary px-1.5 text-[10px] tabular-nums">{issueCount}</span>
+                )}
+                {item.id === "notes" && noteCount > 0 && (
+                  <span className="rounded-full bg-secondary px-1.5 text-[10px] tabular-nums">{noteCount}</span>
                 )}
                 {active && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
               </button>

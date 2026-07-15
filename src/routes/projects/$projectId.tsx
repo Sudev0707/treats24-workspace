@@ -15,6 +15,7 @@ import {
   ProjectSidebar,
   type ProjectView,
 } from "@/components/project/project-sidebar";
+import { ProjectNotesView } from "@/components/project/project-notes-view";
 import {
   AssigneeAvatar,
   JiraBtn,
@@ -53,7 +54,7 @@ type BoardItem = { kind: "task"; item: Task } | { kind: "issue"; item: Issue };
 
 type ProjectSearch = { view?: ProjectView };
 
-const projectViews: ProjectView[] = ["summary", "list", "board", "backlog", "issues", "filters"];
+const projectViews: ProjectView[] = ["summary", "list", "board", "backlog", "issues", "notes", "filters"];
 
 function defaultViewForProject(_project: Project): ProjectView {
   return "list";
@@ -85,7 +86,7 @@ function ProjectDetailPage() {
   const navigate = useNavigate();
   const { projectId } = Route.useParams();
   const { view: urlView } = Route.useSearch();
-  const { projects, tasks, issues, queries, updateTask, updateIssue, activity } = useWorkspace();
+  const { projects, tasks, issues, queries, projectNotes, updateTask, updateIssue, activity } = useWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
   const allProjectTasks = useMemo(
@@ -107,6 +108,10 @@ function ProjectDetailPage() {
   const projectQueries = useMemo(
     () => queries.filter((q) => !q.projectId || q.projectId === projectId),
     [queries, projectId],
+  );
+  const projectNoteCount = useMemo(
+    () => projectNotes.filter((n) => n.projectId === projectId).length,
+    [projectNotes, projectId],
   );
   const boardItems = useMemo<BoardItem[]>(
     () => [
@@ -200,6 +205,7 @@ function ProjectDetailPage() {
           onViewChange={setProjectView}
           issueCount={projectIssues.length}
           taskCount={projectTasks.length}
+          noteCount={projectNoteCount}
         />
 
         <div className="min-w-0 flex-1">
@@ -525,6 +531,8 @@ function ProjectDetailPage() {
               </div>
             </>
           )}
+
+          {view === "notes" && <ProjectNotesView projectId={projectId} />}
         </div>
       </div>
 

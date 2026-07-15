@@ -121,6 +121,18 @@ export type Doc = {
 
 export const docs: Doc[] = [];
 
+export type ProjectNote = {
+  id: string;
+  projectId: string;
+  title: string;
+  body: string;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const projectNotes: ProjectNote[] = [];
+
 export type ActivityItem = {
   id: string;
   userId: string;

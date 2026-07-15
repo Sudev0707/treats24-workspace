@@ -927,7 +927,7 @@ export function StatusSelect({
           isPill
             ? "h-auto w-fit min-w-0 gap-1 border-0 bg-transparent p-0 shadow-none hover:opacity-90 focus:ring-0 focus-visible:ring-0 [&>svg:last-child]:hidden"
             : isSidebar
-              ? "h-9 w-full justify-between rounded-md border border-border bg-secondary/50 px-3 py-2 text-sm font-medium shadow-none hover:bg-secondary/80 [&>svg:last-child]:opacity-60"
+              ? "h-9 w-full justify-between rounded-md border border-primary bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-none hover:bg-primary-glow [&>svg:last-child]:opacity-80"
               : fieldSelectTriggerClass,
           className,
         )}
