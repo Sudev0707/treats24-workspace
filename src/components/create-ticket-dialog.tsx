@@ -197,9 +197,8 @@ export function CreateTicketDialog({
 
   const parentProjectId = parentRef?.item.projectId;
 
-  const isSubtask = Boolean(parentId ?? defaultParentId) || kind === "subtask";
+  const hasParent = Boolean(parentId ?? defaultParentId);
   const lockedProject = Boolean(defaultProjectId || parentProjectId);
-  const lockedIssueType = isSubtask;
   const project = projectId ? getProjectById(projects, projectId) : null;
   const reporter = getMember(reporterId);
   const assignee = getMember(assigneeId);
@@ -207,10 +206,10 @@ export function CreateTicketDialog({
 
   const availableIssueTypes = useMemo(
     () =>
-      isSubtask
-        ? issueTypeOptions.filter((t) => t.kind === "subtask")
+      hasParent
+        ? issueTypeOptions
         : issueTypeOptions.filter((t) => !t.requiresParent),
-    [isSubtask],
+    [hasParent],
   );
 
   useEffect(() => {
@@ -276,10 +275,27 @@ export function CreateTicketDialog({
 
     setIsSubmitting(true);
     try {
-      // Child work items are always created as sub-tasks linked to the parent
       if (effectiveParentId) {
-        const task = await createTask(taskInput);
-        finishCreate(task.id, "task");
+        if (createsTask) {
+          const task = await createTask(taskInput);
+          finishCreate(task.id, "task");
+        } else {
+          const issue = await createIssue({
+            title: summary.trim(),
+            description: description.trim() || undefined,
+            type: kind as IssueType,
+            severity: priority,
+            status: defaultStatus,
+            projectId,
+            assigneeId: assignee,
+            reporterId,
+            parentId: effectiveParentId,
+            stepsToReproduce: kind === "Bug" && steps.trim() ? steps.trim() : undefined,
+            expected: kind === "Bug" && expected.trim() ? expected.trim() : undefined,
+            actual: kind === "Bug" && actual.trim() ? actual.trim() : undefined,
+          });
+          finishCreate(issue.id, "issue");
+        }
         return;
       }
 
@@ -326,7 +342,7 @@ export function CreateTicketDialog({
   };
 
   const canSubmit = Boolean(summary.trim() && projectId) && !isSubmitting;
-  const dialogTitle = isSubtask ? "Create Sub-task" : `Create ${issueTypeLabel(kind)}`;
+  const dialogTitle = `Create ${issueTypeLabel(kind)}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -400,37 +416,29 @@ export function CreateTicketDialog({
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Issue Type <span className="text-destructive">*</span>
             </p>
-            {lockedIssueType ? (
-              <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 shadow-sm">
-                <WorkTypeIcon type="task" className="h-4 w-4" />
-                <span className="text-sm font-medium">Sub-task</span>
-                <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
-              </div>
-            ) : (
-              <Select value={kind} onValueChange={(v) => setKind(v as WorkKind)}>
-                <SelectTrigger className="h-9 border-border bg-card text-sm shadow-sm">
-                  <SelectValue>
-                    <span className="flex items-center gap-2">
-                      <WorkTypeIcon type={workTypeForIcon(kind)} className="h-4 w-4" />
-                      <span>{issueTypeLabel(kind)}</span>
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="min-w-[280px]">
-                  {availableIssueTypes.map((t) => (
-                    <SelectItem key={t.kind} value={t.kind} className="py-2.5">
-                      <div className="flex items-start gap-2.5">
-                        <WorkTypeIcon type={workTypeForIcon(t.kind)} className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium">{t.label}</p>
-                          <p className="text-xs text-muted-foreground">{t.description}</p>
-                        </div>
+            <Select value={kind} onValueChange={(v) => setKind(v as WorkKind)}>
+              <SelectTrigger className="h-9 border-border bg-card text-sm shadow-sm">
+                <SelectValue>
+                  <span className="flex items-center gap-2">
+                    <WorkTypeIcon type={workTypeForIcon(kind)} className="h-4 w-4" />
+                    <span>{issueTypeLabel(kind)}</span>
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="min-w-[280px]">
+                {availableIssueTypes.map((t) => (
+                  <SelectItem key={t.kind} value={t.kind} className="py-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <WorkTypeIcon type={workTypeForIcon(t.kind)} className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{t.label}</p>
+                        <p className="text-xs text-muted-foreground">{t.description}</p>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
