@@ -5,6 +5,8 @@ import { useWorkspace } from "@/lib/workspace-store";
 import {
   findWorkItem,
   getChildWorkItems,
+  getLinkableWorkItems,
+  getLinkedWorkItems,
   getMember,
   getProjectById,
   getSiblingTicketNav,
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/tasks/$taskId")({
 
 function TaskDetailPage() {
   const { taskId } = Route.useParams();
-  const { tasks, issues, projects, updateTask, updateIssue } = useWorkspace();
+  const { tasks, issues, projects, updateTask, updateIssue, linkWorkItem, unlinkWorkItem } = useWorkspace();
   const [createOpen, setCreateOpen] = useState(false);
   const task = tasks.find((t) => t.id === taskId);
   if (!task) throw notFound();
@@ -58,6 +60,31 @@ function TaskDetailPage() {
     [task.id, task.projectId, tasks, issues],
   );
 
+  const linkedItems = useMemo<NestedTicketItem[]>(
+    () =>
+      getLinkedWorkItems(task.id, tasks, issues).map(({ kind, item }) => {
+        const a = getMember(item.assigneeId);
+        const isTask = kind === "task";
+        return {
+          id: item.id,
+          entityKind: kind,
+          workType: isTask ? (item.parentId ? "subtask" : "task") : item.type,
+          summary: item.title,
+          status: item.status,
+          assigneeInitials: a.avatar,
+          createdAt: item.createdAt,
+          to: isTask ? "/tasks/$taskId" : "/issues/$issueId",
+          params: isTask ? { taskId: item.id } : { issueId: item.id },
+        };
+      }),
+    [task.id, tasks, issues],
+  );
+
+  const linkCandidates = useMemo(
+    () => getLinkableWorkItems(task.id, tasks, issues),
+    [task.id, tasks, issues],
+  );
+
   const backTo = {
     to: "/projects/$projectId" as const,
     params: { projectId: project.id },
@@ -89,6 +116,10 @@ function TaskDetailPage() {
             }}
           />
         }
+        linkedWorkItems={linkedItems}
+        linkCandidates={linkCandidates}
+        onLinkWorkItem={(targetId) => linkWorkItem(task.id, targetId)}
+        onUnlinkWorkItem={(targetId) => unlinkWorkItem(task.id, targetId)}
         comments={task.comments}
         attachments={task.attachments}
         sidebar={

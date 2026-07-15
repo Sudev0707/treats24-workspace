@@ -1,0 +1,454 @@
+================================================================================
+                         TREATS24 WORKSPACE
+                    Complete Project Documentation
+================================================================================
+
+Document generated: July 15, 2026
+Project location:  d:\treats24-workspace
+
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+Treats24 Workspace is an internal project management and issue-tracking
+application built for the Treats24 team. It provides a unified workspace to
+plan projects, manage work items (tasks and issues), track delivery progress,
+and keep the team aligned — similar in spirit to tools like Jira or Linear,
+but tailored as a custom in-house solution.
+
+The application is branded as "Treats24 Workspace" and is designed as a
+single-workspace environment where team members can create projects, assign
+work, move items through a full software delivery lifecycle, and view
+insights on team productivity.
+
+
+================================================================================
+2. PURPOSE & GOALS
+================================================================================
+
+Primary Purpose:
+  - Centralize project and work-item management for the Treats24 organization
+  - Replace or supplement external tools (e.g., Jira/Atlassian) with a
+    focused, branded internal workspace
+  - Provide visibility into what each team member is working on, what's
+    blocked, and what's overdue
+  - Support agile workflows (Scrum, Kanban) and bug-tracking use cases
+
+Key Goals:
+  - Ship faster by keeping all work visible in one place
+  - Track projects, tasks, issues, and releases in a single focused UI
+  - Enable filtering and saved queries for repeatable views of work
+  - Surface delivery metrics and team workload through an Insights dashboard
+  - Offer a Jira-inspired UX that feels familiar to developers and PMs
+
+
+================================================================================
+3. TECHNOLOGY STACK
+================================================================================
+
+Frontend Framework:
+  - React 19
+  - TypeScript 5.8
+
+Routing & SSR:
+  - TanStack Router (file-based routing)
+  - TanStack Start (full-stack React framework)
+  - TanStack React Query (server state / data fetching layer)
+
+Build & Dev Tools:
+  - Vite 8
+  - Nitro (server/runtime integration)
+  - ESLint + Prettier
+
+Styling & UI:
+  - Tailwind CSS v4
+  - shadcn/ui component library (Radix UI primitives)
+  - Lucide React icons
+  - Custom Jira-inspired design system (JiraPage, JiraPanel, StatusLozenge, etc.)
+
+Forms & Validation:
+  - React Hook Form
+  - Zod
+
+Other Libraries:
+  - date-fns (date formatting)
+  - Recharts (charts — available in UI kit)
+  - Sonner (toast notifications)
+  - cmdk (command palette / global search)
+
+
+================================================================================
+4. ARCHITECTURE
+================================================================================
+
+Application Structure:
+  src/
+    routes/           - File-based pages (TanStack Router)
+    components/       - Reusable UI and feature components
+      ui/             - shadcn/ui base components
+      jira/           - Jira-style layout components
+      ticket/         - Ticket/work-item UI (list, detail, board)
+      project/        - Project-specific sidebar and header
+    lib/
+      data.ts         - Type definitions, constants, helper functions
+      workspace-store.tsx - React Context state management (in-memory)
+      query-utils.ts  - Saved filter/query logic
+    hooks/            - Custom React hooks
+    styles.css        - Global styles and design tokens
+
+State Management:
+  - All workspace data (projects, tasks, issues, queries, activity) is
+    managed in-memory via React Context (WorkspaceProvider in workspace-store.tsx)
+  - Data starts empty on page load — users create content through the UI
+  - No persistent backend/database is currently connected
+  - Toast notifications confirm create/update/delete actions
+  - Activity feed tracks recent user actions (last 20 items)
+
+Routing:
+  - File-based routing under src/routes/
+  - Auto-generated routeTree.gen.ts (do not edit manually)
+  - Root layout: __root.tsx (sidebar, top bar, providers)
+  - Dynamic routes: /projects/$projectId, /tasks/$taskId, /issues/$issueId
+
+Layout:
+  - Collapsible icon sidebar (AppSidebar)
+  - Sticky top bar with workspace switcher, search, notifications, profile
+  - Main content area with page-specific views
+
+
+================================================================================
+5. FEATURES IMPLEMENTED
+================================================================================
+
+5.1 DASHBOARD ("For you" — /)
+--------------------------------------------------------------------------------
+  - Personal work dashboard showing assigned tasks, reported issues, open
+    issues, and recent work items
+  - Status summary chips (To do, In progress, In review, Done)
+  - Overdue items alert with quick links
+  - Tabbed "Your work" panel (Assigned to me, Reported by me, Open issues,
+    Recent)
+  - Project list preview with progress indicators
+  - Starred projects sidebar
+  - Quick links to Board, Issues, and Filters
+  - Recent activity feed
+
+
+5.2 PROJECTS (/projects, /projects/$projectId)
+--------------------------------------------------------------------------------
+  - Project listing with key, name, lead, category, work item counts, progress
+  - Create project dialog with:
+      * Name, key (auto-generated), description
+      * Template selection (Scrum, Kanban, Bug tracking, Documentation)
+      * Priority, due date, tags, team members, project lead
+  - Project detail page with multiple views:
+      * Summary  — overview stats, recent activity, team members
+      * List     — all work items in list format
+      * Board    — Kanban board grouped by status columns
+      * Backlog  — backlog items only
+      * Issues   — project-scoped issue list
+      * Filters  — project-scoped saved queries
+  - Project sidebar navigation between views
+  - Color-coded project avatars
+
+
+5.3 WORK ITEMS / TASKS (/tasks, /tasks/$taskId)
+--------------------------------------------------------------------------------
+  - Unified work items page combining tasks and issues
+  - List view with grouping by status, inline status changes
+  - Kanban board view with drag-friendly status dropdowns
+  - Toggle between List and Board views
+  - Create ticket dialog supporting multiple work types:
+      * Task, Story (Feature), Bug, Improvement, Hotfix, Documentation,
+        Sub-task
+  - Task detail page with:
+      * Editable title and description
+      * Status workflow (13 statuses — see Section 6)
+      * Assignee, reporter, priority, due date, labels
+      * Parent/child relationships (sub-tasks and linked issues)
+      * Nested tickets panel
+      * Previous/next ticket navigation within project
+      * Comments and attachments counters (UI placeholders)
+
+
+5.4 ISSUES (/issues, /issues/$issueId)
+--------------------------------------------------------------------------------
+  - Dedicated issues list filtered to issue-type work items
+  - Issue type breakdown badges (Bug, Feature, Improvement, Hotfix,
+    Documentation)
+  - Issue detail page with bug-specific fields:
+      * Steps to reproduce
+      * Expected behavior
+      * Actual behavior
+      * Severity (Critical, High, Medium, Low)
+  - Same status workflow and nested item support as tasks
+
+
+5.5 FILTERS / SAVED QUERIES (/queries)
+--------------------------------------------------------------------------------
+  - JQL-style saved filters for tasks and issues
+  - Create filter dialog with criteria:
+      * Entity type (tasks or issues)
+      * Project scope (optional)
+      * Status, priority, assignee, issue type filters
+      * Text search
+  - Filter sidebar listing all saved queries
+  - Live result preview with key, summary, project, status
+  - Delete saved queries
+  - Human-readable filter description (describeFilters)
+
+
+5.6 INSIGHTS / REPORTS (/reports)
+--------------------------------------------------------------------------------
+  - Delivery metrics dashboard with time range selector (7 days, 30 days,
+    All time)
+  - Three tabs:
+      * Overview  — stat cards, work-created chart, priority breakdown,
+                    project progress list
+      * Delivery  — status distribution, done vs open completion rate
+      * Team      — workload table per member (assigned, in progress,
+                    completed, open issues)
+  - Metrics: work completed, in progress, open issues, blocked items,
+    completion rate
+
+
+5.7 TEAM / PEOPLE (/team)
+--------------------------------------------------------------------------------
+  - Team member directory with role, email, avatar
+  - Per-member stats: assigned count, done count, completion rate
+  - Invite people button (UI placeholder)
+
+
+5.8 RELEASES (/releases)
+--------------------------------------------------------------------------------
+  - Release version history and release notes display
+  - Version cards with status (Planned, In Development, Testing, Released)
+  - Features and fixes lists per release
+  - Create version button (UI placeholder — no create flow yet)
+  - Currently reads from static empty releases array
+
+
+5.9 DOCUMENTS (/documents)
+--------------------------------------------------------------------------------
+  - Team knowledge base listing
+  - Document cards with icon, title, excerpt, category, author, date
+  - Search input (UI only)
+  - Create button (UI placeholder)
+  - Categories: Requirements, Meeting Notes, Design, Engineering
+  - Currently reads from static empty docs array
+
+
+5.10 SETTINGS (/settings)
+--------------------------------------------------------------------------------
+  - Workspace settings (name, URL slug)
+  - Profile shortcut
+  - Notification preferences toggles:
+      * Task assigned to me
+      * Comments
+      * Status changes
+  - Save/Cancel buttons (UI only — not persisted)
+
+
+5.11 PROFILE (/profile)
+--------------------------------------------------------------------------------
+  - User profile page with avatar, role, email, timezone
+  - Personal stats: assigned, completed, reported issues, projects
+  - Editable personal information form (name, email, job title, bio)
+  - Assigned work list with status badges
+  - Completion rate progress bar
+  - Account info (role, member since)
+  - Recent activity feed for current user
+
+
+5.12 GLOBAL SEARCH & NAVIGATION
+--------------------------------------------------------------------------------
+  - Command palette (Cmd/Ctrl + K) via GlobalSearch component
+  - Search across tasks, issues, and projects
+  - Collapsible sidebar with icon mode
+  - Top bar with:
+      * Workspace switcher dropdown
+      * Global search trigger
+      * Notifications dropdown (with unread badge)
+      * User profile dropdown (Profile, Settings)
+  - Breadcrumb navigation on most pages
+  - 404 and error boundary pages
+
+
+5.13 WORK ITEM LIFECYCLE & RELATIONSHIPS
+--------------------------------------------------------------------------------
+  - Auto-generated work item IDs (e.g., PROJ-1, PROJ-2) based on project key
+  - Parent-child hierarchy (sub-tasks linked to parent tasks/issues)
+  - 13-status workflow from Backlog through Done/Released
+  - Priority levels: Critical, High, Medium, Low
+  - Issue types: Bug, Feature, Improvement, Hotfix, Documentation
+  - Project templates: Scrum, Kanban, Bug tracking, Documentation
+  - Activity logging for create, status change, and query actions
+
+
+================================================================================
+6. DATA MODEL
+================================================================================
+
+Core Entities:
+
+  Member
+    - id, name, role, avatar (initials), email
+    - Default user: Sudev (Owner, u1)
+
+  Project
+    - id, key, name, description, template, progress, status, priority,
+      dueDate, tags, memberIds, leadId, color
+
+  Task
+    - id, title, description, status, priority, assigneeId, reporterId,
+      projectId, dueDate, labels, comments, attachments, createdAt,
+      parentId (optional)
+
+  Issue
+    - id, title, description, type, severity, status, projectId, assigneeId,
+      reporterId, createdAt, stepsToReproduce, expected, actual,
+      parentId (optional)
+
+  SavedQuery (Filter)
+    - id, name, description, projectId, filters, createdAt, createdBy
+
+  Release
+    - id, version, name, status, date, features, fixes, notes, projectId
+
+  Document
+    - id, title, icon, updatedAt, author, excerpt, category
+
+  ActivityItem
+    - id, userId, action, target, time
+
+  Notification
+    - id, title, message, time, type, unread
+
+Task Status Workflow (13 statuses):
+  1.  Backlog
+  2.  To Do
+  3.  Selected for Development
+  4.  In Progress
+  5.  Blocked
+  6.  In Review
+  7.  Changes Requested
+  8.  Ready for QA
+  9.  QA Testing
+  10. Failed QA
+  11. Ready for Release
+  12. Released
+  13. Done
+
+Done statuses: Done, Released
+Backlog statuses: Backlog, To Do
+
+
+================================================================================
+7. ROUTES REFERENCE
+================================================================================
+
+  /                          Dashboard ("For you")
+  /projects                  Project listing
+  /projects/:projectId       Project detail (summary, list, board, backlog,
+                             issues, filters)
+  /tasks                     Work items (list + board)
+  /tasks/:taskId             Task detail
+  /issues                    Issues listing
+  /issues/:issueId           Issue detail
+  /queries                   Saved filters
+  /releases                  Release history
+  /documents                 Knowledge base
+  /team                      Team directory
+  /reports                   Insights / analytics
+  /settings                  Workspace & notification settings
+  /profile                     User profile
+
+
+================================================================================
+8. HOW TO RUN
+================================================================================
+
+Prerequisites:
+  - Node.js (compatible with Vite 8 / React 19)
+  - npm or compatible package manager
+
+Commands (from package.json):
+  npm run dev       Start development server (vite dev)
+  npm run build     Production build
+  npm run build:dev Development-mode build
+  npm run preview   Preview production build
+  npm run lint      Run ESLint
+  npm run format    Format code with Prettier
+
+
+================================================================================
+9. CURRENT LIMITATIONS & PLACEHOLDER FEATURES
+================================================================================
+
+  - No backend API or database — all data is in-memory and resets on refresh
+  - Releases page has UI but no create/edit flow; data array is empty
+  - Documents page has UI but no create/edit flow; data array is empty
+  - Notifications are static/empty; no real-time notification system
+  - Settings and profile forms are UI-only (not persisted)
+  - Team invite is a button placeholder
+  - Comments and attachments on tickets show counts but are not fully
+    functional
+  - Single hardcoded user (Sudev) in the members list
+  - Help links in sidebar and top bar are non-functional placeholders
+
+
+================================================================================
+10. DESIGN & UX
+================================================================================
+
+  - Jira-inspired visual language with custom design tokens (jira-border,
+    jira-text, jira-link, jira-hover, etc.)
+  - Inter + Poppins font pairing
+  - Collapsible sidebar (icon mode on collapse)
+  - Responsive layouts with mobile-friendly grid breakpoints
+  - Status lozenges with color-coded labels
+  - Priority badges with severity colors
+  - Work type icons (task, bug, story, improvement, hotfix, docs, subtask)
+  - Toast notifications for user actions (Sonner)
+  - Soft shadows, rounded corners, gradient project avatars
+  - Dark/light theming support via CSS custom properties
+
+
+================================================================================
+11. KEY SOURCE FILES
+================================================================================
+
+  src/routes/__root.tsx              App shell, providers, layout
+  src/lib/workspace-store.tsx        Central state (CRUD operations)
+  src/lib/data.ts                    Types, constants, helpers
+  src/lib/query-utils.ts             Filter/query engine
+  src/components/app-sidebar.tsx     Main navigation sidebar
+  src/components/top-bar.tsx         Header with search & notifications
+  src/components/global-search.tsx   Cmd+K command palette
+  src/components/ticket/ticket-ui.tsx Ticket list, detail, board components
+  src/components/jira/ui.tsx         Jira-style page layout primitives
+  src/components/create-ticket-dialog.tsx   Work item creation
+  src/components/create-project-dialog.tsx  Project creation
+  src/components/create-query-dialog.tsx    Saved filter creation
+  src/routes/projects/$projectId.tsx      Project detail with all views
+  src/styles.css                     Global styles and theme variables
+  vite.config.ts                     Vite + TanStack Start configuration
+
+
+================================================================================
+12. SUMMARY
+================================================================================
+
+Treats24 Workspace is a modern, full-featured project management front-end
+built with React 19, TanStack Start, and Tailwind CSS. It delivers a
+Jira-like experience for managing projects, tasks, issues, filters, team
+visibility, and delivery insights — all within a branded Treats24 interface.
+
+The application is currently a client-side prototype with in-memory state,
+making it ideal for demos, UX iteration, and as a foundation for connecting
+a real backend, authentication, and persistent storage in future phases.
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================

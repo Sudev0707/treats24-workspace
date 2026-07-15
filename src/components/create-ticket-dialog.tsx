@@ -40,7 +40,6 @@ import { useWorkspace } from "@/lib/workspace-store";
 import {
   CURRENT_USER_ID,
   UNASSIGNED_ID,
-  members,
   findWorkItem,
   getMember,
   getProjectById,
@@ -174,7 +173,7 @@ export function CreateTicketDialog({
   onCreated,
 }: CreateTicketDialogProps) {
   const navigate = useNavigate();
-  const { projects, tasks, issues, createTask, createIssue } = useWorkspace();
+  const { projects, tasks, issues, createTask, createIssue, members } = useWorkspace();
 
   const [kind, setKind] = useState<WorkKind>(defaultParentId ? "subtask" : defaultKind);
   const [summary, setSummary] = useState("");

@@ -17,12 +17,14 @@ import { Route as ReleasesRouteImport } from './routes/releases'
 import { Route as QueriesRouteImport } from './routes/queries'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IssuesRouteImport } from './routes/issues'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksTaskIdRouteImport } from './routes/tasks/$taskId'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
 import { Route as IssuesIssueIdRouteImport } from './routes/issues/$issueId'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
@@ -64,6 +66,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IssuesRoute = IssuesRouteImport.update({
   id: '/issues',
   path: '/issues',
@@ -94,11 +101,17 @@ const IssuesIssueIdRoute = IssuesIssueIdRouteImport.update({
   path: '/$issueId',
   getParentRoute: () => IssuesRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -107,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRouteWithChildren
   '/team': typeof TeamRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/issues/$issueId': typeof IssuesIssueIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
@@ -115,6 +129,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -123,6 +138,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRouteWithChildren
   '/team': typeof TeamRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/issues/$issueId': typeof IssuesIssueIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
@@ -132,6 +148,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -140,6 +157,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRouteWithChildren
   '/team': typeof TeamRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/issues/$issueId': typeof IssuesIssueIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
@@ -150,6 +168,7 @@ export interface FileRouteTypes {
     | '/'
     | '/documents'
     | '/issues'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -158,6 +177,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
+    | '/auth/callback'
     | '/issues/$issueId'
     | '/projects/$projectId'
     | '/tasks/$taskId'
@@ -166,6 +186,7 @@ export interface FileRouteTypes {
     | '/'
     | '/documents'
     | '/issues'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -174,6 +195,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
+    | '/auth/callback'
     | '/issues/$issueId'
     | '/projects/$projectId'
     | '/tasks/$taskId'
@@ -182,6 +204,7 @@ export interface FileRouteTypes {
     | '/'
     | '/documents'
     | '/issues'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -190,6 +213,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/team'
+    | '/auth/callback'
     | '/issues/$issueId'
     | '/projects/$projectId'
     | '/tasks/$taskId'
@@ -199,6 +223,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DocumentsRoute: typeof DocumentsRoute
   IssuesRoute: typeof IssuesRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   QueriesRoute: typeof QueriesRoute
@@ -207,6 +232,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRouteWithChildren
   TeamRoute: typeof TeamRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -267,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/issues': {
       id: '/issues'
       path: '/issues'
@@ -309,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IssuesIssueIdRouteImport
       parentRoute: typeof IssuesRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -349,6 +389,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocumentsRoute: DocumentsRoute,
   IssuesRoute: IssuesRouteWithChildren,
+  LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   QueriesRoute: QueriesRoute,
@@ -357,6 +398,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRouteWithChildren,
   TeamRoute: TeamRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

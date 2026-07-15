@@ -21,7 +21,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWorkspace } from "@/lib/workspace-store";
 import {
-  members,
   priorities,
   taskStatuses,
   type Priority,
@@ -45,7 +44,7 @@ export function CreateQueryDialog({
   defaultProjectId,
   onCreated,
 }: CreateQueryDialogProps) {
-  const { projects, createQuery } = useWorkspace();
+  const { projects, createQuery, members } = useWorkspace();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [entityType, setEntityType] = useState<"tasks" | "issues">("tasks");

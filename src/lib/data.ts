@@ -28,6 +28,12 @@ export const members: Member[] = [
   { id: "u1", name: "Sudev", role: "Owner", avatar: "SD", email: "sudev@treats24.com" },
 ];
 
+let activeMembers: Member[] = members;
+
+export function setActiveMembers(list: Member[]) {
+  activeMembers = list.length ? list : members;
+}
+
 export type ProjectTemplate = "scrum" | "kanban" | "bug-tracking" | "documentation";
 
 export type Project = {
@@ -63,6 +69,7 @@ export type Task = {
   attachments: number;
   createdAt: string;
   parentId?: string;
+  linkedItemIds?: string[];
 };
 
 export const tasks: Task[] = [];
@@ -82,6 +89,7 @@ export type Issue = {
   expected?: string;
   actual?: string;
   parentId?: string;
+  linkedItemIds?: string[];
 };
 
 export const issues: Issue[] = [];
@@ -169,7 +177,7 @@ export function getMember(id: string): Member {
     };
   }
   return (
-    members.find((m) => m.id === id) ?? {
+    activeMembers.find((m) => m.id === id) ?? {
       id,
       name: "Unknown",
       role: "",
@@ -381,4 +389,43 @@ export function getChildWorkItems(
     ...tasks.filter((t) => t.parentId === parentId).map((item) => ({ kind: "task" as const, item })),
     ...issues.filter((i) => i.parentId === parentId).map((item) => ({ kind: "issue" as const, item })),
   ];
+}
+
+export function getLinkedWorkItems(
+  sourceId: string,
+  tasks: Task[],
+  issues: Issue[],
+): WorkItemRef[] {
+  const source = findWorkItem(sourceId, tasks, issues);
+  if (!source) return [];
+  const ids = source.item.linkedItemIds ?? [];
+  return ids
+    .map((id) => findWorkItem(id, tasks, issues))
+    .filter((ref): ref is WorkItemRef => Boolean(ref));
+}
+
+export function getLinkableWorkItems(
+  sourceId: string,
+  tasks: Task[],
+  issues: Issue[],
+  search = "",
+): WorkItemRef[] {
+  const source = findWorkItem(sourceId, tasks, issues);
+  if (!source) return [];
+
+  const linked = new Set(source.item.linkedItemIds ?? []);
+  const needle = search.trim().toLowerCase();
+
+  const candidates: WorkItemRef[] = [
+    ...tasks.map((item) => ({ kind: "task" as const, item })),
+    ...issues.map((item) => ({ kind: "issue" as const, item })),
+  ];
+
+  return candidates.filter((ref) => {
+    if (ref.item.id === sourceId) return false;
+    if (linked.has(ref.item.id)) return false;
+    if (!needle) return true;
+    const haystack = `${ref.item.id} ${ref.item.title}`.toLowerCase();
+    return haystack.includes(needle);
+  });
 }

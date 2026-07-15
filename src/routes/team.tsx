@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { AssigneeAvatar, JiraBtn, JiraEmpty, JiraPage, JiraPageHeader, JiraPanel } from "@/components/jira/ui";
-import { members, isDoneStatus } from "@/lib/data";
+import { isDoneStatus } from "@/lib/data";
 import { useWorkspace } from "@/lib/workspace-store";
 
 export const Route = createFileRoute("/team")({
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/team")({
 });
 
 function TeamPage() {
-  const { tasks } = useWorkspace();
+  const { tasks, members } = useWorkspace();
 
   return (
     <JiraPage>

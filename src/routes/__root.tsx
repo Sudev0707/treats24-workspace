@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -15,6 +16,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
+import { AuthProvider, isAuthRoute } from "@/lib/auth";
 import { WorkspaceProvider } from "@/lib/workspace-store";
 
 function NotFoundComponent() {
@@ -94,24 +96,36 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const authPage = isAuthRoute(pathname);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <WorkspaceProvider>
-        <TooltipProvider delayDuration={300}>
-        <SidebarProvider>
-          <div className="flex min-h-screen w-full bg-background">
-            <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <TopBar />
-              <main className="flex-1 animate-fade-in">
+      <AuthProvider>
+        <WorkspaceProvider>
+          <TooltipProvider delayDuration={300}>
+            {authPage ? (
+              <>
                 <Outlet />
-              </main>
-            </div>
-          </div>
-          <Toaster position="top-right" />
-        </SidebarProvider>
-        </TooltipProvider>
-      </WorkspaceProvider>
+                <Toaster position="top-right" />
+              </>
+            ) : (
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full bg-background">
+                  <AppSidebar />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <TopBar />
+                    <main className="flex-1 animate-fade-in">
+                      <Outlet />
+                    </main>
+                  </div>
+                </div>
+                <Toaster position="top-right" />
+              </SidebarProvider>
+            )}
+          </TooltipProvider>
+        </WorkspaceProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

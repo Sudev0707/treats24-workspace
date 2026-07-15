@@ -5,6 +5,8 @@ import { useWorkspace } from "@/lib/workspace-store";
 import {
   findWorkItem,
   getChildWorkItems,
+  getLinkableWorkItems,
+  getLinkedWorkItems,
   getMember,
   getProjectById,
   getSiblingTicketNav,
@@ -24,7 +26,7 @@ export const Route = createFileRoute("/issues/$issueId")({
 
 function IssueDetailPage() {
   const { issueId } = Route.useParams();
-  const { issues, tasks, projects, updateIssue, updateTask } = useWorkspace();
+  const { issues, tasks, projects, updateIssue, updateTask, linkWorkItem, unlinkWorkItem } = useWorkspace();
   const [createOpen, setCreateOpen] = useState(false);
   const issue = issues.find((i) => i.id === issueId);
   if (!issue) throw notFound();
@@ -60,6 +62,31 @@ function IssueDetailPage() {
   const siblingNav = useMemo(
     () => getSiblingTicketNav(issue.id, issue.projectId, tasks, issues),
     [issue.id, issue.projectId, tasks, issues],
+  );
+
+  const linkedItems = useMemo<NestedTicketItem[]>(
+    () =>
+      getLinkedWorkItems(issue.id, tasks, issues).map(({ kind, item }) => {
+        const a = getMember(item.assigneeId);
+        const isTask = kind === "task";
+        return {
+          id: item.id,
+          entityKind: kind,
+          workType: isTask ? (item.parentId ? "subtask" : "task") : item.type,
+          summary: item.title,
+          status: item.status,
+          assigneeInitials: a.avatar,
+          createdAt: item.createdAt,
+          to: isTask ? "/tasks/$taskId" : "/issues/$issueId",
+          params: isTask ? { taskId: item.id } : { issueId: item.id },
+        };
+      }),
+    [issue.id, tasks, issues],
+  );
+
+  const linkCandidates = useMemo(
+    () => getLinkableWorkItems(issue.id, tasks, issues),
+    [issue.id, tasks, issues],
   );
 
   const backTo = {
@@ -125,6 +152,10 @@ function IssueDetailPage() {
             }}
           />
         }
+        linkedWorkItems={linkedItems}
+        linkCandidates={linkCandidates}
+        onLinkWorkItem={(targetId) => linkWorkItem(issue.id, targetId)}
+        onUnlinkWorkItem={(targetId) => unlinkWorkItem(issue.id, targetId)}
         sidebar={
           <>
             <TicketSidebarField label="Issue type">

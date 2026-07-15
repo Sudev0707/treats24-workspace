@@ -25,7 +25,6 @@ import { useWorkspace } from "@/lib/workspace-store";
 import {
   CURRENT_USER_ID,
   generateProjectKey,
-  members,
   priorities,
   projectCategories,
   type Priority,
@@ -78,7 +77,7 @@ type CreateProjectDialogProps = {
 
 export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateProjectDialogProps) {
   const navigate = useNavigate();
-  const { projects, createProject } = useWorkspace();
+  const { projects, createProject, members } = useWorkspace();
 
   const [template, setTemplate] = useState<ProjectTemplate>("kanban");
   const [name, setName] = useState("");

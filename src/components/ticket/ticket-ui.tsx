@@ -25,6 +25,7 @@ import {
   Zap as AutomationIcon,
   GitBranch,
   Link2,
+  X,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -62,6 +63,7 @@ import {
   type Priority,
   type TaskStatus,
   type TicketNavLink,
+  type WorkItemRef,
 } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -380,13 +382,158 @@ function TicketAttachmentsSection({ count = 0 }: { count?: number }) {
   );
 }
 
-function LinkedWorkItemsSection() {
+function LinkedWorkItemsSection({
+  items,
+  linkCandidates,
+  onLink,
+  onUnlink,
+}: {
+  items: NestedTicketItem[];
+  linkCandidates: WorkItemRef[];
+  onLink: (targetId: string) => void;
+  onUnlink: (targetId: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return linkCandidates.slice(0, 8);
+    return linkCandidates
+      .filter((ref) => `${ref.item.id} ${ref.item.title}`.toLowerCase().includes(needle))
+      .slice(0, 8);
+  }, [linkCandidates, query]);
+
+  const gridClass = "sm:grid-cols-[28px_88px_minmax(0,1fr)_minmax(96px,auto)_32px]";
+
+  const handleLink = (targetId: string) => {
+    onLink(targetId);
+    setQuery("");
+    setAdding(false);
+  };
+
   return (
-    <TicketCollapsibleSection title="Linked work items" defaultOpen={false}>
-      <button type="button" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
-        <Link2 className="h-3.5 w-3.5" />
-        Add linked work item
-      </button>
+    <TicketCollapsibleSection
+      title="Linked work items"
+      count={items.length}
+      defaultOpen={items.length > 0}
+    >
+      {items.length > 0 && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-border/60">
+          <div
+            className={cn(
+              "hidden gap-3 border-b border-border bg-secondary/40 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid",
+              gridClass,
+            )}
+          >
+            <span />
+            <span>Key</span>
+            <span>Summary</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className={cn(
+                "group/row relative grid grid-cols-1 gap-2 border-b border-border px-4 py-3 transition-colors last:border-0 hover:bg-secondary/50 sm:items-center sm:gap-3 sm:py-2.5",
+                gridClass,
+              )}
+            >
+              <WorkTypeIcon type={item.workType} className="relative z-10 hidden sm:block" />
+              <TicketKeyLink ticketKey={item.id} to={item.to} params={item.params} />
+              <Link
+                to={item.to}
+                params={item.params}
+                className="relative z-10 min-w-0 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="truncate text-sm font-medium text-foreground">{item.summary}</p>
+              </Link>
+              <div className="relative z-10">
+                <StatusLozenge status={item.status} size="sm" />
+              </div>
+              <button
+                type="button"
+                onClick={() => onUnlink(item.id)}
+                className="relative z-10 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-secondary hover:text-foreground group-hover/row:opacity-100 sm:opacity-100"
+                aria-label={`Remove link to ${item.id}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by key or summary…"
+              className="h-9 pl-8 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setAdding(false);
+                  setQuery("");
+                }
+              }}
+            />
+          </div>
+          {filtered.length > 0 ? (
+            <ul className="overflow-hidden rounded-md border border-border">
+              {filtered.map((ref) => {
+                const isTask = ref.kind === "task";
+                const workType: WorkType = isTask
+                  ? ref.item.parentId
+                    ? "subtask"
+                    : "task"
+                  : ref.item.type;
+                return (
+                  <li key={ref.item.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleLink(ref.item.id)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary/80"
+                    >
+                      <WorkTypeIcon type={workType} className="shrink-0" />
+                      <span className="shrink-0 font-mono text-xs text-primary">{ref.item.id}</span>
+                      <span className="min-w-0 truncate text-foreground">{ref.item.title}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {query.trim() ? "No matching work items." : "No linkable work items found."}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setQuery("");
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          Add linked work item
+        </button>
+      )}
     </TicketCollapsibleSection>
   );
 }
@@ -549,6 +696,10 @@ type TicketDetailViewProps = {
   prevTicket?: TicketNavLink;
   nextTicket?: TicketNavLink;
   extraPanels?: React.ReactNode;
+  linkedWorkItems?: NestedTicketItem[];
+  linkCandidates?: WorkItemRef[];
+  onLinkWorkItem?: (targetId: string) => void;
+  onUnlinkWorkItem?: (targetId: string) => void;
   sidebar: React.ReactNode;
   comments?: number;
   attachments?: number;
@@ -570,6 +721,10 @@ export function TicketDetailView({
   prevTicket,
   nextTicket,
   extraPanels,
+  linkedWorkItems,
+  linkCandidates,
+  onLinkWorkItem,
+  onUnlinkWorkItem,
   sidebar,
   comments = 0,
   attachments = 0,
@@ -607,7 +762,14 @@ export function TicketDetailView({
 
             {extraPanels}
 
-            <LinkedWorkItemsSection />
+            {onLinkWorkItem && onUnlinkWorkItem && linkCandidates && (
+              <LinkedWorkItemsSection
+                items={linkedWorkItems ?? []}
+                linkCandidates={linkCandidates}
+                onLink={onLinkWorkItem}
+                onUnlink={onUnlinkWorkItem}
+              />
+            )}
 
             <TicketAttachmentsSection count={attachments} />
 

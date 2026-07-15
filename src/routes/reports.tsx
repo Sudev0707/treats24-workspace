@@ -27,7 +27,6 @@ import { useWorkspace } from "@/lib/workspace-store";
 import {
   DONE_STATUSES,
   isDoneStatus,
-  members,
   priorities,
   taskStatuses,
   type Priority,
@@ -111,7 +110,7 @@ function StatCard({
 }
 
 function ReportsPage() {
-  const { tasks, issues, projects } = useWorkspace();
+  const { tasks, issues, projects, members } = useWorkspace();
   const [range, setRange] = useState<TimeRange>("7d");
   const [tab, setTab] = useState<InsightTab>("overview");
 

@@ -2,13 +2,18 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
 import {
   CURRENT_USER_ID,
+  members as fallbackMembers,
+  setActiveMembers,
+  type Member,
   type Project,
   type Task,
   type Issue,
@@ -19,7 +24,21 @@ import {
   type TaskStatus,
   type IssueType,
   type ProjectTemplate,
+  findWorkItem,
 } from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  deleteQueryInDb,
+  ensureProfileForUser,
+  fetchWorkspaceData,
+  saveActivity,
+  saveIssue,
+  saveProject,
+  saveQuery,
+  saveTask,
+  updateIssueInDb,
+  updateTaskInDb,
+} from "@/lib/workspace-db";
 
 type CreateTaskInput = {
   title: string;
@@ -74,7 +93,10 @@ type WorkspaceContextValue = {
   issues: Issue[];
   queries: SavedQuery[];
   activity: ActivityItem[];
+  members: Member[];
   currentUserId: string;
+  isLoading: boolean;
+  isPersisted: boolean;
   createTask: (input: CreateTaskInput) => Task;
   updateTask: (id: string, patch: Partial<Task>) => void;
   createIssue: (input: CreateIssueInput) => Issue;
@@ -82,6 +104,8 @@ type WorkspaceContextValue = {
   createProject: (input: CreateProjectInput) => Project;
   createQuery: (input: CreateQueryInput) => SavedQuery;
   deleteQuery: (id: string) => void;
+  linkWorkItem: (sourceId: string, targetId: string) => void;
+  unlinkWorkItem: (sourceId: string, targetId: string) => void;
   addActivity: (action: string, target: string) => void;
 };
 
@@ -125,18 +149,102 @@ const PROJECT_COLORS = [
 ];
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const { user, isLoading: authLoading } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [queries, setQueries] = useState<SavedQuery[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [members, setMembers] = useState<Member[]>(fallbackMembers);
+  const [isLoading, setIsLoading] = useState(isSupabaseConfigured);
+  const [isPersisted, setIsPersisted] = useState(false);
 
-  const addActivity = useCallback((action: string, target: string) => {
-    setActivity((prev) => [
-      { id: `a${Date.now()}`, userId: CURRENT_USER_ID, action, target, time: "just now" },
-      ...prev.slice(0, 19),
-    ]);
-  }, []);
+  const currentUserId = user?.id ?? CURRENT_USER_ID;
+  const canPersist = isSupabaseConfigured && Boolean(user);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      setIsPersisted(false);
+      return;
+    }
+
+    if (authLoading) return;
+
+    if (!user) {
+      setIsLoading(false);
+      setIsPersisted(false);
+      setMembers(fallbackMembers);
+      setActiveMembers(fallbackMembers);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function hydrate() {
+      setIsLoading(true);
+      try {
+        await ensureProfileForUser(user!);
+        const data = await fetchWorkspaceData();
+        if (cancelled) return;
+
+        setProjects(data.projects);
+        setTasks(data.tasks);
+        setIssues(data.issues);
+        setQueries(data.queries);
+        setActivity(data.activity);
+        const loadedMembers = data.members.length ? data.members : fallbackMembers;
+        setMembers(loadedMembers);
+        setActiveMembers(loadedMembers);
+        setIsPersisted(true);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(error);
+          toast.error("Failed to load workspace data", {
+            description: error instanceof Error ? error.message : "Check your Supabase setup.",
+          });
+          setIsPersisted(false);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authLoading]);
+
+  const persist = useCallback(
+    async (operation: () => Promise<void>) => {
+      if (!canPersist) return;
+      try {
+        await operation();
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to save changes", {
+          description: error instanceof Error ? error.message : "Please try again.",
+        });
+      }
+    },
+    [canPersist],
+  );
+
+  const addActivity = useCallback(
+    (action: string, target: string) => {
+      const item: ActivityItem = {
+        id: `a${Date.now()}`,
+        userId: currentUserId,
+        action,
+        target,
+        time: "just now",
+      };
+      setActivity((prev) => [item, ...prev.slice(0, 19)]);
+      void persist(() => saveActivity(item));
+    },
+    [currentUserId, persist],
+  );
 
   const createTask = useCallback(
     (input: CreateTaskInput): Task => {
@@ -148,7 +256,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         status: input.status ?? "To Do",
         priority: input.priority,
         assigneeId: input.assigneeId,
-        reporterId: input.reporterId ?? CURRENT_USER_ID,
+        reporterId: input.reporterId ?? currentUserId,
         projectId: input.projectId,
         dueDate: input.dueDate,
         labels: input.labels ?? [],
@@ -160,17 +268,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setTasks((prev) => [task, ...prev]);
       addActivity("created task", input.parentId ? `${task.id} under ${input.parentId}` : task.id);
       toast.success(`${task.id} created`);
+      void persist(() => saveTask(task));
       return task;
     },
-    [projects, tasks, issues, addActivity],
+    [projects, tasks, issues, addActivity, currentUserId, persist],
   );
 
   const updateTask = useCallback(
     (id: string, patch: Partial<Task>) => {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
       if (patch.status) addActivity("moved", `${id} to ${patch.status}`);
+      void persist(() => updateTaskInDb(id, patch));
     },
-    [addActivity],
+    [addActivity, persist],
   );
 
   const createIssue = useCallback(
@@ -185,7 +295,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         status: input.status ?? "To Do",
         projectId: input.projectId,
         assigneeId: input.assigneeId,
-        reporterId: input.reporterId ?? CURRENT_USER_ID,
+        reporterId: input.reporterId ?? currentUserId,
         createdAt: new Date().toISOString().slice(0, 10),
         ...(input.parentId ? { parentId: input.parentId } : {}),
         stepsToReproduce: input.stepsToReproduce,
@@ -195,17 +305,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setIssues((prev) => [issue, ...prev]);
       addActivity("opened", input.parentId ? `${issue.id} under ${input.parentId}` : issue.id);
       toast.success(`${issue.id} created`);
+      void persist(() => saveIssue(issue));
       return issue;
     },
-    [projects, tasks, issues, addActivity],
+    [projects, tasks, issues, addActivity, currentUserId, persist],
   );
 
   const updateIssue = useCallback(
     (id: string, patch: Partial<Issue>) => {
       setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
       if (patch.status) addActivity("updated", `${id} → ${patch.status}`);
+      void persist(() => updateIssueInDb(id, patch));
     },
-    [addActivity],
+    [addActivity, persist],
   );
 
   const createProject = useCallback(
@@ -231,9 +343,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setProjects((prev) => [project, ...prev]);
       addActivity("created project", project.name);
       toast.success(`Project ${project.key} created`);
+      void persist(() => saveProject(project));
       return project;
     },
-    [projects, addActivity],
+    [projects, addActivity, persist],
   );
 
   const createQuery = useCallback(
@@ -245,20 +358,117 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         projectId: input.projectId,
         filters: input.filters,
         createdAt: new Date().toISOString().slice(0, 10),
-        createdBy: CURRENT_USER_ID,
+        createdBy: currentUserId,
       };
       setQueries((prev) => [query, ...prev]);
       addActivity("saved query", query.name);
       toast.success(`Query "${query.name}" saved`);
+      void persist(() => saveQuery(query));
       return query;
     },
-    [queries, addActivity],
+    [queries, addActivity, currentUserId, persist],
   );
 
-  const deleteQuery = useCallback((id: string) => {
-    setQueries((prev) => prev.filter((q) => q.id !== id));
-    toast.success("Query deleted");
-  }, []);
+  const deleteQuery = useCallback(
+    (id: string) => {
+      setQueries((prev) => prev.filter((q) => q.id !== id));
+      toast.success("Query deleted");
+      void persist(() => deleteQueryInDb(id));
+    },
+    [persist],
+  );
+
+  const linkWorkItem = useCallback(
+    (sourceId: string, targetId: string) => {
+      if (sourceId === targetId) return;
+
+      const sourceRef = findWorkItem(sourceId, tasks, issues);
+      const targetRef = findWorkItem(targetId, tasks, issues);
+      if (!sourceRef || !targetRef) return;
+
+      const sourceLinked = sourceRef.item.linkedItemIds ?? [];
+      const targetLinked = targetRef.item.linkedItemIds ?? [];
+      if (sourceLinked.includes(targetId)) return;
+
+      const newSourceLinked = [...sourceLinked, targetId];
+      const newTargetLinked = [...targetLinked, sourceId];
+
+      if (sourceRef.kind === "task") {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === sourceId ? { ...t, linkedItemIds: newSourceLinked } : t)),
+        );
+        void persist(() => updateTaskInDb(sourceId, { linkedItemIds: newSourceLinked }));
+      } else {
+        setIssues((prev) =>
+          prev.map((i) => (i.id === sourceId ? { ...i, linkedItemIds: newSourceLinked } : i)),
+        );
+        void persist(() => updateIssueInDb(sourceId, { linkedItemIds: newSourceLinked }));
+      }
+
+      if (targetRef.kind === "task") {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === targetId ? { ...t, linkedItemIds: newTargetLinked } : t)),
+        );
+        void persist(() => updateTaskInDb(targetId, { linkedItemIds: newTargetLinked }));
+      } else {
+        setIssues((prev) =>
+          prev.map((i) => (i.id === targetId ? { ...i, linkedItemIds: newTargetLinked } : i)),
+        );
+        void persist(() => updateIssueInDb(targetId, { linkedItemIds: newTargetLinked }));
+      }
+
+      addActivity("linked", `${sourceId} ↔ ${targetId}`);
+      toast.success(`Linked ${sourceId} to ${targetId}`);
+    },
+    [tasks, issues, addActivity, persist],
+  );
+
+  const unlinkWorkItem = useCallback(
+    (sourceId: string, targetId: string) => {
+      const sourceRef = findWorkItem(sourceId, tasks, issues);
+      const targetRef = findWorkItem(targetId, tasks, issues);
+      if (!sourceRef || !targetRef) return;
+
+      const newSourceLinked = (sourceRef.item.linkedItemIds ?? []).filter((id) => id !== targetId);
+      const newTargetLinked = (targetRef.item.linkedItemIds ?? []).filter((id) => id !== sourceId);
+
+      if (sourceRef.kind === "task") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === sourceId ? { ...t, linkedItemIds: newSourceLinked.length ? newSourceLinked : undefined } : t,
+          ),
+        );
+        void persist(() => updateTaskInDb(sourceId, { linkedItemIds: newSourceLinked }));
+      } else {
+        setIssues((prev) =>
+          prev.map((i) =>
+            i.id === sourceId ? { ...i, linkedItemIds: newSourceLinked.length ? newSourceLinked : undefined } : i,
+          ),
+        );
+        void persist(() => updateIssueInDb(sourceId, { linkedItemIds: newSourceLinked }));
+      }
+
+      if (targetRef.kind === "task") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === targetId ? { ...t, linkedItemIds: newTargetLinked.length ? newTargetLinked : undefined } : t,
+          ),
+        );
+        void persist(() => updateTaskInDb(targetId, { linkedItemIds: newTargetLinked }));
+      } else {
+        setIssues((prev) =>
+          prev.map((i) =>
+            i.id === targetId ? { ...i, linkedItemIds: newTargetLinked.length ? newTargetLinked : undefined } : i,
+          ),
+        );
+        void persist(() => updateIssueInDb(targetId, { linkedItemIds: newTargetLinked }));
+      }
+
+      addActivity("unlinked", `${sourceId} ↔ ${targetId}`);
+      toast.success(`Removed link between ${sourceId} and ${targetId}`);
+    },
+    [tasks, issues, addActivity, persist],
+  );
 
   const value = useMemo(
     () => ({
@@ -267,7 +477,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       issues,
       queries,
       activity,
-      currentUserId: CURRENT_USER_ID,
+      members,
+      currentUserId,
+      isLoading,
+      isPersisted,
       createTask,
       updateTask,
       createIssue,
@@ -275,6 +488,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       createProject,
       createQuery,
       deleteQuery,
+      linkWorkItem,
+      unlinkWorkItem,
       addActivity,
     }),
     [
@@ -283,6 +498,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       issues,
       queries,
       activity,
+      members,
+      currentUserId,
+      isLoading,
+      isPersisted,
       createTask,
       updateTask,
       createIssue,
@@ -290,6 +509,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       createProject,
       createQuery,
       deleteQuery,
+      linkWorkItem,
+      unlinkWorkItem,
       addActivity,
     ],
   );
