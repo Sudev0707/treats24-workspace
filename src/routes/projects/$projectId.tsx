@@ -35,6 +35,7 @@ import {
   type TicketListItem,
   WorkTypeIcon,
 } from "@/components/ticket/ticket-ui";
+import { EditableField } from "@/components/profile/editable-field";
 import { useWorkspace } from "@/lib/workspace-store";
 import {
   BACKLOG_STATUSES,
@@ -86,7 +87,7 @@ function ProjectDetailPage() {
   const navigate = useNavigate();
   const { projectId } = Route.useParams();
   const { view: urlView } = Route.useSearch();
-  const { projects, tasks, issues, queries, projectNotes, updateTask, updateIssue, activity } = useWorkspace();
+  const { projects, tasks, issues, queries, projectNotes, updateTask, updateIssue, updateProject, activity } = useWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
   const allProjectTasks = useMemo(
@@ -196,6 +197,10 @@ function ProjectDetailPage() {
     setTicketOpen(true);
   };
 
+  const saveProjectName = (name: string) => {
+    updateProject(projectId, { name });
+  };
+
   return (
     <JiraPage>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -203,13 +208,14 @@ function ProjectDetailPage() {
           project={project}
           activeView={view}
           onViewChange={setProjectView}
+          onRename={saveProjectName}
           issueCount={projectIssues.length}
           taskCount={projectTasks.length}
           noteCount={projectNoteCount}
         />
 
         <div className="min-w-0 flex-1">
-          <ProjectHeaderBar project={project} onCreateTicket={() => openCreateTicket()} />
+          <ProjectHeaderBar project={project} onCreateTicket={() => openCreateTicket()} onRename={saveProjectName} />
 
           {view === "summary" && (
             <div className="space-y-4">
@@ -217,7 +223,16 @@ function ProjectDetailPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-xs font-semibold text-primary">{project.key}</p>
-                    <h2 className="font-display text-lg font-semibold text-foreground">{project.name}</h2>
+                    <EditableField
+                      value={project.name}
+                      onSave={saveProjectName}
+                      variant="title"
+                      placeholder="Project name"
+                      emptyText="Untitled project"
+                      required
+                      editTitle="Click to rename project"
+                      className="text-lg"
+                    />
                     <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
                   </div>
                   <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] capitalize text-muted-foreground">

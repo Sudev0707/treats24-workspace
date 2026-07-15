@@ -10,6 +10,7 @@ import {
   ChevronRight,
   StickyNote,
 } from "lucide-react";
+import { EditableField } from "@/components/profile/editable-field";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/lib/data";
 
@@ -29,12 +30,13 @@ type ProjectSidebarProps = {
   project: Project;
   activeView: ProjectView;
   onViewChange: (view: ProjectView) => void;
+  onRename: (name: string) => void;
   issueCount: number;
   taskCount: number;
   noteCount?: number;
 };
 
-export function ProjectSidebar({ project, activeView, onViewChange, issueCount, taskCount, noteCount = 0 }: ProjectSidebarProps) {
+export function ProjectSidebar({ project, activeView, onViewChange, onRename, issueCount, taskCount, noteCount = 0 }: ProjectSidebarProps) {
   return (
     <aside className="w-full shrink-0 lg:w-56">
       <div className="rounded-md border border-border bg-card shadow-soft lg:sticky lg:top-20">
@@ -44,7 +46,16 @@ export function ProjectSidebar({ project, activeView, onViewChange, issueCount, 
               {project.name.slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="truncate font-display text-sm font-semibold text-foreground">{project.name}</p>
+              <EditableField
+                value={project.name}
+                onSave={onRename}
+                variant="subtitle"
+                placeholder="Project name"
+                emptyText="Untitled project"
+                required
+                editTitle="Click to rename project"
+                className="font-display text-sm font-semibold text-foreground"
+              />
               <p className="truncate text-[11px] text-muted-foreground">
                 <span className="font-mono font-medium text-primary">{project.key}</span>
                 {" · "}
@@ -103,9 +114,11 @@ export function ProjectSidebar({ project, activeView, onViewChange, issueCount, 
 export function ProjectHeaderBar({
   project,
   onCreateTicket,
+  onRename,
 }: {
   project: Project;
   onCreateTicket: () => void;
+  onRename: (name: string) => void;
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 shadow-soft">
@@ -113,7 +126,16 @@ export function ProjectHeaderBar({
         <nav className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
           <Link to="/projects" className="text-primary hover:underline">Projects</Link>
           <span>/</span>
-          <span className="truncate font-medium text-foreground">{project.name}</span>
+          <EditableField
+            value={project.name}
+            onSave={onRename}
+            variant="subtitle"
+            placeholder="Project name"
+            emptyText="Untitled project"
+            required
+            editTitle="Click to rename project"
+            className="min-w-0 truncate font-medium text-foreground"
+          />
         </nav>
       </div>
       <div className="flex items-center gap-2">

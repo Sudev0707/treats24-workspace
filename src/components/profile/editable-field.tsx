@@ -13,6 +13,7 @@ type EditableFieldProps = {
   variant?: "title" | "subtitle" | "row";
   className?: string;
   required?: boolean;
+  editTitle?: string;
 };
 
 export function EditableField({
@@ -24,6 +25,7 @@ export function EditableField({
   variant = "row",
   className,
   required = false,
+  editTitle = "Click to edit",
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -106,7 +108,7 @@ export function EditableField({
           isEmpty && "text-muted-foreground",
           className,
         )}
-        title="Click to edit username"
+        title={editTitle}
       >
         <span className="truncate">{displayValue}</span>
         <Pencil className="h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />
@@ -124,7 +126,7 @@ export function EditableField({
           isEmpty ? "text-muted-foreground/70" : "text-muted-foreground",
           className,
         )}
-        title="Click to edit job title"
+        title={editTitle}
       >
         <span className="truncate">{displayValue}</span>
         <Pencil className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />

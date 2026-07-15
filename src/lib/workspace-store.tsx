@@ -748,6 +748,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (id: string, patch: Partial<Project>) => {
       setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
       if (patch.status || patch.name) addActivity("updated project", patch.name ?? id);
+      if (patch.name) toast.success("Project renamed");
       void persist(() => updateProjectInDb(id, patch));
       void ensureMembersCached(
         [patch.leadId, ...(patch.memberIds ?? [])].filter((memberId): memberId is string => Boolean(memberId)),
