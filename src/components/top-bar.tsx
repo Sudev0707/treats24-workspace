@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Bell, Search, ChevronDown, HelpCircle, Settings, User } from "lucide-react";
+import { Bell, Search, ChevronDown, HelpCircle, LogOut, Settings, User } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -14,12 +14,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { notifications } from "@/lib/data";
+import { notifications as fallbackNotifications } from "@/lib/data";
 import { GlobalSearch } from "@/components/global-search";
+import { useAuth } from "@/lib/auth";
+import { useCurrentUserDisplay } from "@/hooks/use-current-user-display";
+import { useWorkspace } from "@/lib/workspace-store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 export function TopBar() {
-  const unread = notifications.filter((n) => n.unread).length;
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const display = useCurrentUserDisplay();
+  const { notifications, markNotificationRead, markAllNotificationsRead, isPersisted } = useWorkspace();
+  const activeNotifications = isPersisted || isSupabaseConfigured ? notifications : fallbackNotifications;
+  const unread = activeNotifications.filter((n) => n.unread).length;
   const [searchOpen, setSearchOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+      navigate({ to: "/login", replace: true });
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   return (
     <>
@@ -73,14 +93,34 @@ export function TopBar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 rounded-md">
               <DropdownMenuLabel className="flex items-center justify-between">
-                Notifications <Badge variant="secondary" className="rounded-full">{unread} new</Badge>
+                Notifications
+                <div className="flex items-center gap-2">
+                  {unread > 0 && (
+                    <Badge variant="secondary" className="rounded-full">
+                      {unread} new
+                    </Badge>
+                  )}
+                  {unread > 0 && (
+                    <button
+                      type="button"
+                      className="text-[10px] font-normal text-primary hover:underline"
+                      onClick={() => markAllNotificationsRead()}
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {notifications.length === 0 ? (
+              {activeNotifications.length === 0 ? (
                 <div className="px-3 py-6 text-center text-sm text-muted-foreground">No notifications</div>
               ) : (
-                notifications.map((n) => (
-                <DropdownMenuItem key={n.id} className="flex items-start gap-2 rounded-sm py-2">
+                activeNotifications.map((n) => (
+                <DropdownMenuItem
+                  key={n.id}
+                  className="flex items-start gap-2 rounded-sm py-2"
+                  onClick={() => n.unread && markNotificationRead(n.id)}
+                >
                   <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${n.unread ? "bg-primary" : "bg-muted-foreground/40"}`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
@@ -99,15 +139,20 @@ export function TopBar() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md p-0">
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">SD</AvatarFallback>
+                  {display.avatarUrl ? (
+                    <AvatarImage src={display.avatarUrl} alt={display.name} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+                    {display.initials}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 rounded-md">
               <DropdownMenuLabel>
                 <div className="flex flex-col">
-                  <span>Sudev</span>
-                  <span className="text-xs font-normal text-muted-foreground">sudev@treats24.com</span>
+                  <span>{display.name}</span>
+                  <span className="text-xs font-normal text-muted-foreground">{display.email}</span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -122,6 +167,15 @@ export function TopBar() {
                   <Settings className="h-4 w-4" />
                   Settings
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 rounded-sm text-destructive focus:text-destructive"
+                disabled={signingOut}
+                onClick={() => void handleSignOut()}
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -50,7 +50,7 @@ export function LoginForm() {
         ) : (
           <GoogleIcon className="h-5 w-5" />
         )}
-        Continue with Google
+        Sign in with Google
       </Button>
 
       {!isConfigured && (

@@ -17,6 +17,7 @@ import { Route as ReleasesRouteImport } from './routes/releases'
 import { Route as QueriesRouteImport } from './routes/queries'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IssuesRouteImport } from './routes/issues'
 import { Route as DocumentsRouteImport } from './routes/documents'
@@ -66,6 +67,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/documents': typeof DocumentsRoute
   '/issues': typeof IssuesRouteWithChildren
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/queries': typeof QueriesRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/issues'
     | '/login'
+    | '/onboarding'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/issues'
     | '/login'
+    | '/onboarding'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/issues'
     | '/login'
+    | '/onboarding'
     | '/profile'
     | '/projects'
     | '/queries'
@@ -224,6 +236,7 @@ export interface RootRouteChildren {
   DocumentsRoute: typeof DocumentsRoute
   IssuesRoute: typeof IssuesRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   QueriesRoute: typeof QueriesRoute
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -390,6 +410,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocumentsRoute: DocumentsRoute,
   IssuesRoute: IssuesRouteWithChildren,
   LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   QueriesRoute: QueriesRoute,

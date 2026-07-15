@@ -16,7 +16,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
-import { AuthProvider, isAuthRoute } from "@/lib/auth";
+import { AuthGuard } from "@/components/auth/auth-guard";
+import { AuthProvider, isBareRoute } from "@/lib/auth";
 import { WorkspaceProvider } from "@/lib/workspace-store";
 
 function NotFoundComponent() {
@@ -97,32 +98,34 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const authPage = isAuthRoute(pathname);
+  const barePage = isBareRoute(pathname);
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <WorkspaceProvider>
           <TooltipProvider delayDuration={300}>
-            {authPage ? (
-              <>
-                <Outlet />
-                <Toaster position="top-right" />
-              </>
-            ) : (
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full bg-background">
-                  <AppSidebar />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <TopBar />
-                    <main className="flex-1 animate-fade-in">
-                      <Outlet />
-                    </main>
+            <AuthGuard>
+              {barePage ? (
+                <>
+                  <Outlet />
+                  <Toaster position="top-right" />
+                </>
+              ) : (
+                <SidebarProvider>
+                  <div className="flex min-h-screen w-full bg-background">
+                    <AppSidebar />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <TopBar />
+                      <main className="flex-1 animate-fade-in">
+                        <Outlet />
+                      </main>
+                    </div>
                   </div>
-                </div>
-                <Toaster position="top-right" />
-              </SidebarProvider>
-            )}
+                  <Toaster position="top-right" />
+                </SidebarProvider>
+              )}
+            </AuthGuard>
           </TooltipProvider>
         </WorkspaceProvider>
       </AuthProvider>

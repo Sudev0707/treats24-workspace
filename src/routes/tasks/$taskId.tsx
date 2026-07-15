@@ -18,6 +18,7 @@ import {
   TicketSidebarField,
   type NestedTicketItem,
 } from "@/components/ticket/ticket-ui";
+import { TicketAttachmentsPanel } from "@/components/ticket/ticket-attachments";
 
 export const Route = createFileRoute("/tasks/$taskId")({
   component: TaskDetailPage,
@@ -122,6 +123,9 @@ function TaskDetailPage() {
         onUnlinkWorkItem={(targetId) => unlinkWorkItem(task.id, targetId)}
         comments={task.comments}
         attachments={task.attachments}
+        attachmentsPanel={
+          <TicketAttachmentsPanel ticketId={task.id} projectKey={project.key} entityKind="task" />
+        }
         sidebar={
           <>
             <TicketSidebarField label="Assignee">

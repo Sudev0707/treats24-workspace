@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { AssigneeAvatar } from "@/components/jira/ui";
+import { useCurrentUserDisplay } from "@/hooks/use-current-user-display";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Treats24" }] }),
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const display = useCurrentUserDisplay();
   return (
     <JiraPage className="max-w-3xl">
       <JiraPageHeader
@@ -41,10 +43,10 @@ function SettingsPage() {
         <JiraPanel title="Profile">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="flex items-center gap-3">
-              <AssigneeAvatar initials="SD" />
+              <AssigneeAvatar initials={display.initials} />
               <div>
-                <p className="font-medium text-jira-text">Sudev</p>
-                <p className="text-xs text-jira-muted">sudev@treats24.com</p>
+                <p className="font-medium text-jira-text">{display.name}</p>
+                <p className="text-xs text-jira-muted">{display.email}</p>
               </div>
             </div>
             <Link to="/profile" className="text-xs text-primary hover:underline">

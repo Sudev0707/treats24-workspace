@@ -26,8 +26,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useCurrentUserDisplay } from "@/hooks/use-current-user-display";
 
 const mainItems = [
   { title: "For you", url: "/", icon: LayoutDashboard },
@@ -49,6 +50,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const display = useCurrentUserDisplay();
   const isActive = (url: string) => (url === "/" ? pathname === "/" : pathname.startsWith(url));
 
   const NavItem = ({ item }: { item: (typeof mainItems)[0] }) => {
@@ -136,12 +138,17 @@ export function AppSidebar() {
             >
               <Link to="/profile" className="flex items-center gap-2.5 px-2 py-2.5">
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">SD</AvatarFallback>
+                  {display.avatarUrl ? (
+                    <AvatarImage src={display.avatarUrl} alt={display.name} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+                    {display.initials}
+                  </AvatarFallback>
                 </Avatar>
                 {!collapsed && (
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-medium">Sudev</span>
-                    <span className="truncate text-xs text-muted-foreground">Owner</span>
+                    <span className="truncate text-sm font-medium">{display.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{display.role ?? "Member"}</span>
                   </div>
                 )}
               </Link>

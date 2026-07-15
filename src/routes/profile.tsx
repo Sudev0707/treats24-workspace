@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Camera, Mail, MapPin, Settings, Shield } from "lucide-react";
+import { toast } from "sonner";
 import {
   JiraBtn,
   JiraLinkBtn,
@@ -9,12 +10,11 @@ import {
   JiraPanel,
   StatusLozenge,
 } from "@/components/jira/ui";
+import { EditableField, ReadOnlyField } from "@/components/profile/editable-field";
 import { TicketKeyLink } from "@/components/ticket/ticket-ui";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/lib/auth";
 import { getMember, getProjectById, isDoneStatus } from "@/lib/data";
 import { useWorkspace } from "@/lib/workspace-store";
 
@@ -24,8 +24,20 @@ export const Route = createFileRoute("/profile")({
 });
 
 function ProfilePage() {
-  const { tasks, issues, projects, activity, currentUserId } = useWorkspace();
-  const user = getMember(currentUserId);
+  const { user: authUser } = useAuth();
+  const { tasks, issues, projects, activity, currentUserId, members, updateProfile } = useWorkspace();
+  const user = members.find((member) => member.id === currentUserId) ?? getMember(currentUserId);
+  const email = user.email.trim() || authUser?.email?.trim() || "";
+
+  function saveUsername(name: string) {
+    updateProfile({ name, avatar: name.slice(0, 2).toUpperCase() });
+    toast.success("Username updated");
+  }
+
+  function saveJobTitle(role: string) {
+    updateProfile({ role });
+    toast.success("Job title updated");
+  }
 
   const stats = useMemo(() => {
     const assigned = tasks.filter((t) => t.assigneeId === currentUserId);
@@ -55,7 +67,7 @@ function ProfilePage() {
     <JiraPage className="max-w-4xl">
       <JiraPageHeader
         title="Profile"
-        subtitle={`${user.role} · ${user.email}`}
+        subtitle={`${user.role || "No job title"} · ${email || "No email"}`}
         breadcrumbs={[{ label: "Treats24", to: "/" }, { label: "Profile" }]}
         actions={
           <JiraLinkBtn to="/settings">
@@ -79,8 +91,22 @@ function ProfilePage() {
               </span>
             </div>
             <div className="min-w-0 flex-1 pb-1">
-              <h2 className="font-display text-xl font-semibold text-foreground">{user.name}</h2>
-              <p className="text-sm text-muted-foreground">{user.role}</p>
+              <EditableField
+                value={user.name}
+                onSave={saveUsername}
+                variant="title"
+                placeholder="Your username"
+                emptyText="Add username"
+                required
+              />
+              <EditableField
+                value={user.role}
+                onSave={saveJobTitle}
+                variant="subtitle"
+                placeholder="Your job title"
+                emptyText="Add job title"
+                required
+              />
             </div>
             <JiraBtn variant="default" size="sm">
               Edit photo
@@ -89,7 +115,7 @@ function ProfilePage() {
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5" />
-              {user.email}
+              {email || "No email"}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5" />
@@ -117,34 +143,33 @@ function ProfilePage() {
         <div className="space-y-4">
           <JiraPanel title="Personal information">
             <div className="space-y-4 p-4">
+              <p className="text-xs text-muted-foreground">
+                Click username or job title to edit. Email is from your sign-in account and cannot be changed.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Full name</Label>
-                  <Input defaultValue={user.name} className="h-8 rounded border-border" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Email</Label>
-                  <Input defaultValue={user.email} type="email" className="h-8 rounded border-border" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Job title</Label>
-                  <Input defaultValue="Product Owner" className="h-8 rounded border-border" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Timezone</Label>
-                  <Input defaultValue="Asia/Kolkata (IST)" className="h-8 rounded border-border" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bio</Label>
-                <Textarea
-                  defaultValue="Building Treats24 workspace — shipping projects, tracking issues, and keeping the team aligned."
-                  className="min-h-[88px] resize-none rounded border-border"
+                <EditableField
+                  label="Username"
+                  value={user.name}
+                  onSave={saveUsername}
+                  placeholder="e.g. Sudev"
+                  emptyText="Add username"
+                  required
                 />
-              </div>
-              <div className="flex justify-end gap-2">
-                <JiraBtn variant="default">Cancel</JiraBtn>
-                <JiraBtn variant="primary">Save profile</JiraBtn>
+                <EditableField
+                  label="Job title"
+                  value={user.role}
+                  onSave={saveJobTitle}
+                  placeholder="e.g. Product Manager"
+                  emptyText="Add job title"
+                  required
+                />
+                <ReadOnlyField
+                  label="Email"
+                  value={email}
+                  emptyText="No email on account"
+                  hint="Linked to your Google sign-in · cannot be changed"
+                />
+                <ReadOnlyField label="Timezone" value="Asia/Kolkata (IST)" />
               </div>
             </div>
           </JiraPanel>
@@ -205,13 +230,13 @@ function ProfilePage() {
               <div className="flex items-start gap-3 pb-3">
                 <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">Role</p>
-                  <p className="text-xs text-muted-foreground">{user.role} · full workspace access</p>
+                  <p className="text-sm font-medium text-foreground">Job title</p>
+                  <p className="text-xs text-muted-foreground">{user.role || "Not set"}</p>
                 </div>
               </div>
               <div className="py-3">
-                <p className="text-sm font-medium text-foreground">Member since</p>
-                <p className="text-xs text-muted-foreground">January 2026</p>
+                <p className="text-sm font-medium text-foreground">Username</p>
+                <p className="text-xs text-muted-foreground">{user.name || "Not set"}</p>
               </div>
               <Separator className="my-3" />
               <Link to="/settings" className="text-xs text-primary hover:underline">

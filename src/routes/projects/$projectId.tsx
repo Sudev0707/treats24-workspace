@@ -66,6 +66,10 @@ export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectDetailPage,
 });
 
+function ticketRouteParams(id: string, isTask: boolean): Record<string, string> {
+  return isTask ? { taskId: id } : { issueId: id };
+}
+
 function createDefaultsForView(view: ProjectView): { defaultStatus?: TaskStatus; defaultKind?: WorkKind } {
   switch (view) {
     case "issues":
@@ -169,7 +173,7 @@ function ProjectDetailPage() {
           reporterInitials: reporter.avatar,
           createdAt: item.createdAt,
           to: isTask ? "/tasks/$taskId" : "/issues/$issueId",
-          params: isTask ? { taskId: item.id } : { issueId: item.id },
+          params: ticketRouteParams(item.id, isTask),
         };
       }),
     [boardItems],
@@ -182,7 +186,7 @@ function ProjectDetailPage() {
 
   const projectActivity = activity.slice(0, 5);
 
-  const openCreateTicket = (opts?: { status?: TaskStatus; kind?: WorkKind }) => {
+  const openCreateTicket = (opts?: { defaultStatus?: TaskStatus; defaultKind?: WorkKind }) => {
     setTicketDefaults(opts ?? createDefaultsForView(view));
     setTicketOpen(true);
   };
@@ -288,8 +292,8 @@ function ProjectDetailPage() {
                     recentWork.map(({ kind, item }) => {
                       const assignee = getMember(item.assigneeId);
                       const isTask = kind === "task";
-                      const to = isTask ? "/tasks/$taskId" : "/issues/$issueId";
-                      const params = isTask ? { taskId: item.id } : { issueId: item.id };
+                      const to: string = isTask ? "/tasks/$taskId" : "/issues/$issueId";
+                      const params = ticketRouteParams(item.id, isTask);
                       return (
                         <div
                           key={item.id}
@@ -461,8 +465,8 @@ function ProjectDetailPage() {
                       const isTask = kind === "task";
                       const workType = isTask ? "task" : (item as Issue).type;
                       const priority = isTask ? (item as Task).priority : (item as Issue).severity;
-                      const to = isTask ? "/tasks/$taskId" : "/issues/$issueId";
-                      const params = isTask ? { taskId: item.id } : { issueId: item.id };
+                      const to: string = isTask ? "/tasks/$taskId" : "/issues/$issueId";
+                      const params = ticketRouteParams(item.id, isTask);
                       return (
                       <div
                         key={item.id}

@@ -96,3 +96,11 @@ export function useAuth() {
 export function isAuthRoute(pathname: string) {
   return pathname === "/login" || pathname.startsWith("/auth/");
 }
+
+export function isOnboardingRoute(pathname: string) {
+  return pathname === "/onboarding";
+}
+
+export function isBareRoute(pathname: string) {
+  return isAuthRoute(pathname) || isOnboardingRoute(pathname);
+}

@@ -1,16 +1,26 @@
 import { formatDistanceToNow } from "date-fns";
 import type {
   ActivityItem,
+  Doc,
   Issue,
   Member,
+  Notification,
   Project,
   QueryFilters,
+  Release,
   SavedQuery,
   Task,
+  TicketAttachment,
 } from "@/lib/data";
+import { markOnboardingCompleteLocally } from "@/lib/onboarding";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
+const PROFILE_COLUMNS = "id, name, email, role, avatar";
+
+export function generateEntityId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+}
 
 type WorkspaceData = {
   projects: Project[];
@@ -19,6 +29,9 @@ type WorkspaceData = {
   queries: SavedQuery[];
   activity: ActivityItem[];
   members: Member[];
+  releases: Release[];
+  documents: Doc[];
+  notifications: Notification[];
 };
 
 function requireClient() {
@@ -33,6 +46,7 @@ function mapProfile(row: {
   email: string;
   role: string;
   avatar: string;
+  onboarding_completed?: boolean;
 }): Member {
   return {
     id: row.id,
@@ -40,6 +54,7 @@ function mapProfile(row: {
     role: row.role,
     avatar: row.avatar,
     email: row.email,
+    onboardingCompleted: row.onboarding_completed,
   };
 }
 
@@ -183,19 +198,116 @@ function mapActivity(row: {
   };
 }
 
+function mapRelease(row: {
+  id: string;
+  version: string;
+  name: string;
+  status: string;
+  release_date: string | null;
+  features: string[] | null;
+  fixes: string[] | null;
+  notes: string;
+  project_id: string | null;
+}): Release {
+  return {
+    id: row.id,
+    version: row.version,
+    name: row.name,
+    status: row.status as Release["status"],
+    date: row.release_date ?? new Date().toISOString().slice(0, 10),
+    features: row.features ?? [],
+    fixes: row.fixes ?? [],
+    notes: row.notes,
+    projectId: row.project_id ?? "",
+  };
+}
+
+function mapDocument(row: {
+  id: string;
+  title: string;
+  icon: string;
+  excerpt: string;
+  category: string;
+  author: string;
+  updated_at: string;
+}): Doc {
+  return {
+    id: row.id,
+    title: row.title,
+    icon: row.icon,
+    excerpt: row.excerpt,
+    category: row.category as Doc["category"],
+    author: row.author,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapNotification(row: {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  unread: boolean;
+  created_at: string;
+}): Notification {
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    type: row.type as Notification["type"],
+    unread: row.unread,
+    time: formatDistanceToNow(new Date(row.created_at), { addSuffix: true }),
+  };
+}
+
+function mapAttachment(row: {
+  id: string;
+  ticket_id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number;
+  file_type: string;
+  url: string;
+  created_at: string;
+}): TicketAttachment {
+  return {
+    id: row.id,
+    ticketId: row.ticket_id,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileSize: row.file_size,
+    fileType: row.file_type,
+    url: row.url,
+    createdAt: row.created_at,
+  };
+}
+
 export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Promise<WorkspaceData> {
   const supabase = requireClient();
 
-  const [profilesRes, projectsRes, tasksRes, issuesRes, queriesRes, activityRes] = await Promise.all([
+  const [
+    profilesRes,
+    projectsRes,
+    tasksRes,
+    issuesRes,
+    queriesRes,
+    activityRes,
+    releasesRes,
+    documentsRes,
+    notificationsRes,
+  ] = await Promise.all([
     supabase
       .from("workspace_members")
-      .select("profile:profiles(id, name, email, role, avatar)")
+      .select(`profile:profiles(${PROFILE_COLUMNS})`)
       .eq("workspace_id", workspaceId),
     supabase.from("projects").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("tasks").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("issues").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("saved_queries").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     supabase.from("activities").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20),
+    supabase.from("releases").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+    supabase.from("documents").select("*").eq("workspace_id", workspaceId).order("updated_at", { ascending: false }),
+    supabase.from("notifications").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(50),
   ]);
 
   if (profilesRes.error) throw profilesRes.error;
@@ -204,10 +316,16 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
   if (issuesRes.error) throw issuesRes.error;
   if (queriesRes.error) throw queriesRes.error;
   if (activityRes.error) throw activityRes.error;
+  if (releasesRes.error) throw releasesRes.error;
+  if (documentsRes.error) throw documentsRes.error;
+  if (notificationsRes.error) throw notificationsRes.error;
 
   const members = (profilesRes.data ?? [])
-    .map((row) => row.profile)
-    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .flatMap((row) => {
+      const profile = row.profile;
+      if (!profile) return [];
+      return Array.isArray(profile) ? profile : [profile];
+    })
     .map((p) => mapProfile(p));
 
   return {
@@ -217,6 +335,9 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     issues: (issuesRes.data ?? []).map(mapIssue),
     queries: (queriesRes.data ?? []).map(mapQuery),
     activity: (activityRes.data ?? []).map(mapActivity),
+    releases: (releasesRes.data ?? []).map(mapRelease),
+    documents: (documentsRes.data ?? []).map(mapDocument),
+    notifications: (notificationsRes.data ?? []).map(mapNotification),
   };
 }
 
@@ -364,6 +485,248 @@ export async function saveActivity(item: ActivityItem, workspaceId = DEFAULT_WOR
   if (error) throw error;
 }
 
+export async function updateProjectInDb(id: string, patch: Partial<Project>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.key !== undefined) row.key = patch.key;
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.description !== undefined) row.description = patch.description;
+  if (patch.template !== undefined) row.template = patch.template;
+  if (patch.progress !== undefined) row.progress = patch.progress;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.priority !== undefined) row.priority = patch.priority;
+  if (patch.dueDate !== undefined) row.due_date = patch.dueDate || null;
+  if (patch.tags !== undefined) row.tags = patch.tags;
+  if (patch.memberIds !== undefined) row.member_ids = patch.memberIds;
+  if (patch.leadId !== undefined) row.lead_id = patch.leadId;
+  if (patch.color !== undefined) row.color = patch.color;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("projects").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteProjectInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("projects").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTaskInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteIssueInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("issues").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateQueryInDb(id: string, patch: Partial<SavedQuery>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.description !== undefined) row.description = patch.description ?? null;
+  if (patch.projectId !== undefined) row.project_id = patch.projectId ?? null;
+  if (patch.filters !== undefined) row.filters = patch.filters;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("saved_queries").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function saveRelease(release: Release, workspaceId = DEFAULT_WORKSPACE_ID) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("releases").insert({
+    id: release.id,
+    workspace_id: workspaceId,
+    project_id: release.projectId || null,
+    version: release.version,
+    name: release.name,
+    status: release.status,
+    release_date: release.date || null,
+    features: release.features,
+    fixes: release.fixes,
+    notes: release.notes,
+  });
+  if (error) throw error;
+}
+
+export async function updateReleaseInDb(id: string, patch: Partial<Release>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.version !== undefined) row.version = patch.version;
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.date !== undefined) row.release_date = patch.date || null;
+  if (patch.features !== undefined) row.features = patch.features;
+  if (patch.fixes !== undefined) row.fixes = patch.fixes;
+  if (patch.notes !== undefined) row.notes = patch.notes;
+  if (patch.projectId !== undefined) row.project_id = patch.projectId || null;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("releases").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteReleaseInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("releases").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function saveDocument(doc: Doc, workspaceId = DEFAULT_WORKSPACE_ID) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("documents").insert({
+    id: doc.id,
+    workspace_id: workspaceId,
+    title: doc.title,
+    icon: doc.icon,
+    excerpt: doc.excerpt,
+    category: doc.category,
+    author: doc.author,
+    updated_at: doc.updatedAt,
+  });
+  if (error) throw error;
+}
+
+export async function updateDocumentInDb(id: string, patch: Partial<Doc>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.icon !== undefined) row.icon = patch.icon;
+  if (patch.excerpt !== undefined) row.excerpt = patch.excerpt;
+  if (patch.category !== undefined) row.category = patch.category;
+  if (patch.author !== undefined) row.author = patch.author;
+  if (patch.updatedAt !== undefined) row.updated_at = patch.updatedAt;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("documents").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteDocumentInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("documents").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function saveNotification(notification: Notification, userId: string, workspaceId = DEFAULT_WORKSPACE_ID) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("notifications").insert({
+    id: notification.id,
+    workspace_id: workspaceId,
+    user_id: userId,
+    title: notification.title,
+    message: notification.message,
+    type: notification.type,
+    unread: notification.unread,
+  });
+  if (error) throw error;
+}
+
+export async function updateNotificationInDb(id: string, patch: Partial<Pick<Notification, "unread">>) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.unread !== undefined) row.unread = patch.unread;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("notifications").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function markAllNotificationsReadInDb(userId: string, workspaceId = DEFAULT_WORKSPACE_ID) {
+  const supabase = requireClient();
+  const { error } = await supabase
+    .from("notifications")
+    .update({ unread: false })
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", userId)
+    .eq("unread", true);
+  if (error) throw error;
+}
+
+export async function deleteNotificationInDb(id: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.from("notifications").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateProfileInDb(
+  id: string,
+  patch: Partial<
+    Pick<Member, "name" | "role" | "avatar" | "email" | "onboardingCompleted"> & { avatarUrl?: string }
+  >,
+) {
+  const supabase = requireClient();
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.email !== undefined) row.email = patch.email;
+  if (patch.role !== undefined) row.role = patch.role;
+  if (patch.avatar !== undefined) row.avatar = patch.avatar;
+  if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
+  if (patch.onboardingCompleted !== undefined) row.onboarding_completed = patch.onboardingCompleted;
+
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("profiles").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function completeOnboardingInDb(
+  id: string,
+  input: { name: string; role: string },
+): Promise<Member> {
+  const supabase = requireClient();
+  const avatar = input.name.slice(0, 2).toUpperCase();
+  const patch = {
+    name: input.name.trim(),
+    role: input.role.trim(),
+    avatar,
+  };
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(patch)
+    .eq("id", id)
+    .select(PROFILE_COLUMNS)
+    .single();
+
+  if (error) throw error;
+
+  // Optional column — ignore if migration not applied yet
+  await supabase.from("profiles").update({ onboarding_completed: true }).eq("id", id);
+
+  markOnboardingCompleteLocally(id);
+  return { ...mapProfile(data), onboardingCompleted: true };
+}
+
+export async function fetchTicketAttachments(ticketId: string): Promise<TicketAttachment[]> {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .select("*")
+    .eq("ticket_id", ticketId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAttachment);
+}
+
+export async function deleteTicketAttachmentInDb(id: string, filePath: string) {
+  const supabase = requireClient();
+  const { error: storageError } = await supabase.storage.from("attachments").remove([filePath]);
+  if (storageError) throw storageError;
+  const { error } = await supabase.from("task_attachments").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function ensureProfileForUser(user: {
   id: string;
   email?: string;
@@ -378,11 +741,22 @@ export async function ensureProfileForUser(user: {
 
   const { data: existing } = await supabase
     .from("profiles")
-    .select("id, name, email, role, avatar")
+    .select(PROFILE_COLUMNS)
     .eq("id", user.id)
     .maybeSingle();
 
-  if (existing) return mapProfile(existing);
+  if (existing) {
+    const authEmail = user.email?.trim() ?? "";
+    const profileEmail = existing.email?.trim() ?? "";
+
+    if (!profileEmail && authEmail) {
+      const { error } = await supabase.from("profiles").update({ email: authEmail }).eq("id", user.id);
+      if (error) throw error;
+      return mapProfile({ ...existing, email: authEmail });
+    }
+
+    return mapProfile(existing);
+  }
 
   const member: Member = {
     id: user.id,
@@ -390,6 +764,7 @@ export async function ensureProfileForUser(user: {
     email: user.email ?? "",
     role: "Developer",
     avatar: name.slice(0, 2).toUpperCase(),
+    onboardingCompleted: false,
   };
 
   const { error: profileError } = await supabase.from("profiles").upsert({

@@ -703,6 +703,7 @@ type TicketDetailViewProps = {
   sidebar: React.ReactNode;
   comments?: number;
   attachments?: number;
+  attachmentsPanel?: React.ReactNode;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -728,6 +729,7 @@ export function TicketDetailView({
   sidebar,
   comments = 0,
   attachments = 0,
+  attachmentsPanel,
   createdAt,
   updatedAt,
 }: TicketDetailViewProps) {
@@ -771,7 +773,7 @@ export function TicketDetailView({
               />
             )}
 
-            <TicketAttachmentsSection count={attachments} />
+            {attachmentsPanel ?? <TicketAttachmentsSection count={attachments} />}
 
             <section className="mt-2 border-t border-border pt-4">
               <div className="mb-3 flex items-center justify-between">

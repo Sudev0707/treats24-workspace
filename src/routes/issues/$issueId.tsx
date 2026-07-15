@@ -19,6 +19,7 @@ import {
   WorkTypeBadge,
   type NestedTicketItem,
 } from "@/components/ticket/ticket-ui";
+import { TicketAttachmentsPanel } from "@/components/ticket/ticket-attachments";
 
 export const Route = createFileRoute("/issues/$issueId")({
   component: IssueDetailPage,
@@ -50,7 +51,10 @@ function IssueDetailPage() {
           assigneeInitials: a.avatar,
           createdAt: item.createdAt,
           to: isTask ? "/tasks/$taskId" : "/issues/$issueId",
-          params: isTask ? { taskId: item.id } : { issueId: item.id },
+          params: (isTask ? { taskId: item.id } : { issueId: item.id }) as Record<
+            string,
+            string
+          >,
         };
       }),
     [issue.id, tasks, issues],
@@ -78,7 +82,10 @@ function IssueDetailPage() {
           assigneeInitials: a.avatar,
           createdAt: item.createdAt,
           to: isTask ? "/tasks/$taskId" : "/issues/$issueId",
-          params: isTask ? { taskId: item.id } : { issueId: item.id },
+          params: (isTask ? { taskId: item.id } : { issueId: item.id }) as Record<
+            string,
+            string
+          >,
         };
       }),
     [issue.id, tasks, issues],
@@ -156,6 +163,9 @@ function IssueDetailPage() {
         linkCandidates={linkCandidates}
         onLinkWorkItem={(targetId) => linkWorkItem(issue.id, targetId)}
         onUnlinkWorkItem={(targetId) => unlinkWorkItem(issue.id, targetId)}
+        attachmentsPanel={
+          <TicketAttachmentsPanel ticketId={issue.id} projectKey={project.key} entityKind="issue" />
+        }
         sidebar={
           <>
             <TicketSidebarField label="Issue type">

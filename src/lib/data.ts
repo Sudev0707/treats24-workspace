@@ -22,6 +22,7 @@ export type Member = {
   role: string;
   avatar: string;
   email: string;
+  onboardingCompleted?: boolean;
 };
 
 export const members: Member[] = [
@@ -162,6 +163,17 @@ export type SavedQuery = {
 };
 
 export const savedQueries: SavedQuery[] = [];
+
+export type TicketAttachment = {
+  id: string;
+  ticketId: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  fileType: string;
+  url: string;
+  createdAt: string;
+};
 
 export const CURRENT_USER_ID = "u1";
 export const UNASSIGNED_ID = "unassigned";
@@ -346,7 +358,7 @@ export function getSiblingTicketNav(
     ...issues.filter((i) => i.projectId === projectId && isTopLevelWorkItem(i)),
   ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-  const links: TicketNavLink[] = sorted.map((item) =>
+  const links: TicketNavLink[] = sorted.map((item): TicketNavLink =>
     "priority" in item
       ? { to: "/tasks/$taskId", params: { taskId: item.id } }
       : { to: "/issues/$issueId", params: { issueId: item.id } },
