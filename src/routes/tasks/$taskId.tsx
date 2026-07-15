@@ -13,7 +13,7 @@ import {
 } from "@/lib/data";
 import {
   NestedTicketsPanel,
-  PriorityLozenge,
+  PrioritySelect,
   TicketDetailView,
   TicketSidebarField,
   type NestedTicketItem,
@@ -145,7 +145,12 @@ function TaskDetailPage() {
               </div>
             </TicketSidebarField>
             <TicketSidebarField label="Priority">
-              <PriorityLozenge priority={task.priority} />
+              <PrioritySelect
+                priority={task.priority}
+                onPriorityChange={(priority) => updateTask(task.id, { priority })}
+                variant="field"
+                className="w-full"
+              />
             </TicketSidebarField>
             <TicketSidebarField label="Project">
               <Link

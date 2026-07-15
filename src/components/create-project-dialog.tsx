@@ -93,6 +93,7 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [showMore, setShowMore] = useState(false);
   const [createAnother, setCreateAnother] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const existingKeys = useMemo(() => projects.map((p) => p.key), [projects]);
 
@@ -127,34 +128,41 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
     setMemberIds((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !key.trim()) return;
+    if (!name.trim() || !key.trim() || isSubmitting) return;
 
     const normalizedKey = key.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
     if (!normalizedKey) return;
 
-    const project = createProject({
-      name: name.trim(),
-      key: normalizedKey,
-      description: description.trim(),
-      template,
-      priority,
-      dueDate,
-      tags: [category.toLowerCase()],
-      leadId,
-      memberIds: memberIds.filter((id) => id !== leadId),
-    });
+    setIsSubmitting(true);
+    try {
+      const project = await createProject({
+        name: name.trim(),
+        key: normalizedKey,
+        description: description.trim(),
+        template,
+        priority,
+        dueDate,
+        tags: [category.toLowerCase()],
+        leadId,
+        memberIds: memberIds.filter((id) => id !== leadId),
+      });
 
-    if (createAnother) {
+      if (createAnother) {
+        resetForm();
+        return;
+      }
+
       resetForm();
-      return;
+      onOpenChange(false);
+      onCreated?.(project.id);
+      navigate({ to: "/projects/$projectId", params: { projectId: project.id }, search: { view: "list" } });
+    } catch {
+      // Error toast is shown by the workspace store
+    } finally {
+      setIsSubmitting(false);
     }
-
-    resetForm();
-    onOpenChange(false);
-    onCreated?.(project.id);
-    navigate({ to: "/projects/$projectId", params: { projectId: project.id }, search: { view: "list" } });
   };
 
   return (
@@ -332,9 +340,9 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
               type="submit"
               form="create-project-form"
               className="rounded-md bg-primary text-primary-foreground shadow-soft hover:bg-primary-glow"
-              disabled={!name.trim() || !key.trim()}
+              disabled={!name.trim() || !key.trim() || isSubmitting}
             >
-              Create project
+              {isSubmitting ? "Creating…" : "Create project"}
             </Button>
           </div>
         </div>

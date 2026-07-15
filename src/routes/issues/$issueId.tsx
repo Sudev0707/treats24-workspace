@@ -13,7 +13,7 @@ import {
 } from "@/lib/data";
 import {
   NestedTicketsPanel,
-  PriorityLozenge,
+  PrioritySelect,
   TicketDetailView,
   TicketSidebarField,
   WorkTypeBadge,
@@ -188,7 +188,12 @@ function IssueDetailPage() {
               </div>
             </TicketSidebarField>
             <TicketSidebarField label="Priority">
-              <PriorityLozenge priority={issue.severity} />
+              <PrioritySelect
+                priority={issue.severity}
+                onPriorityChange={(severity) => updateIssue(issue.id, { severity })}
+                variant="field"
+                className="w-full"
+              />
             </TicketSidebarField>
             <TicketSidebarField label="Project">
               <Link

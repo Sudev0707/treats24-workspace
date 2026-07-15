@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { statusColor, statusLabel, statusMeaning, type TaskStatus } from "@/lib/data";
+import { statusColor, statusLabel, statusMeaning, priorityDot, type Priority, type TaskStatus } from "@/lib/data";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const statusDot: Record<TaskStatus, string> = {
@@ -310,12 +310,8 @@ export function JiraKanbanCard({
   params?: Record<string, string>;
   typeIcon?: React.ReactNode;
 }) {
-  const priorityDot =
-    priority === "Critical" || priority === "High"
-      ? "bg-destructive"
-      : priority === "Medium"
-        ? "bg-primary"
-        : "bg-muted-foreground/40";
+  const dot = priority && priorityDot[priority as Priority];
+  const priorityDotClass = dot ?? "bg-muted-foreground/40";
 
   return (
     <Link
@@ -329,7 +325,7 @@ export function JiraKanbanCard({
       </div>
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          {priority && <span className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot)} title={priority} />}
+          {priority && <span className={cn("h-2 w-2 shrink-0 rounded-full", priorityDotClass)} title={priority} />}
           <span className="font-mono text-[11px] font-medium text-primary underline-offset-2 group-hover:underline">{id}</span>
         </div>
         <AssigneeAvatar initials={assignee} size="sm" />

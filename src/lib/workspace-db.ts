@@ -42,6 +42,19 @@ function requireClient() {
   return client;
 }
 
+export function formatDbError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message.length > 0) return message;
+  }
+  return "Please try again.";
+}
+
+function throwDbError(error: { message: string } | null): void {
+  if (error) throw new Error(error.message);
+}
+
 function mapProfile(row: {
   id: string;
   name: string;
@@ -334,16 +347,42 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
     supabase.from("notifications").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(50),
   ]);
 
-  if (profilesRes.error) throw profilesRes.error;
+  if (profilesRes.error) {
+    console.warn("workspace members unavailable:", profilesRes.error.message);
+  }
   if (projectsRes.error) throw projectsRes.error;
-  if (tasksRes.error) throw tasksRes.error;
-  if (issuesRes.error) throw issuesRes.error;
-  if (queriesRes.error) throw queriesRes.error;
-  if (activityRes.error) throw activityRes.error;
-  if (releasesRes.error) throw releasesRes.error;
-  if (documentsRes.error) throw documentsRes.error;
-  if (projectNotesRes.error) throw projectNotesRes.error;
-  if (notificationsRes.error) throw notificationsRes.error;
+  if (tasksRes.error) {
+    console.warn("tasks unavailable:", tasksRes.error.message);
+  }
+  if (issuesRes.error) {
+    console.warn("issues unavailable:", issuesRes.error.message);
+  }
+  if (queriesRes.error) {
+    console.warn("saved queries unavailable:", queriesRes.error.message);
+  }
+  if (activityRes.error) {
+    console.warn("activities unavailable:", activityRes.error.message);
+  }
+  if (releasesRes.error) {
+    console.warn("releases unavailable:", releasesRes.error.message);
+  }
+  if (documentsRes.error) {
+    console.warn("documents unavailable:", documentsRes.error.message);
+  }
+
+  const projectNotes = projectNotesRes.error
+    ? []
+    : (projectNotesRes.data ?? []).map(mapProjectNote);
+  if (projectNotesRes.error) {
+    console.warn("project_notes unavailable:", projectNotesRes.error.message);
+  }
+
+  const notifications = notificationsRes.error
+    ? []
+    : (notificationsRes.data ?? []).map(mapNotification);
+  if (notificationsRes.error) {
+    console.warn("notifications unavailable:", notificationsRes.error.message);
+  }
 
   const members = (profilesRes.data ?? [])
     .flatMap((row) => {
@@ -356,15 +395,50 @@ export async function fetchWorkspaceData(workspaceId = DEFAULT_WORKSPACE_ID): Pr
   return {
     members,
     projects: (projectsRes.data ?? []).map(mapProject),
-    tasks: (tasksRes.data ?? []).map(mapTask),
-    issues: (issuesRes.data ?? []).map(mapIssue),
-    queries: (queriesRes.data ?? []).map(mapQuery),
-    activity: (activityRes.data ?? []).map(mapActivity),
-    releases: (releasesRes.data ?? []).map(mapRelease),
-    documents: (documentsRes.data ?? []).map(mapDocument),
-    projectNotes: (projectNotesRes.data ?? []).map(mapProjectNote),
-    notifications: (notificationsRes.data ?? []).map(mapNotification),
+    tasks: tasksRes.error ? [] : (tasksRes.data ?? []).map(mapTask),
+    issues: issuesRes.error ? [] : (issuesRes.data ?? []).map(mapIssue),
+    queries: queriesRes.error ? [] : (queriesRes.data ?? []).map(mapQuery),
+    activity: activityRes.error ? [] : (activityRes.data ?? []).map(mapActivity),
+    releases: releasesRes.error ? [] : (releasesRes.data ?? []).map(mapRelease),
+    documents: documentsRes.error ? [] : (documentsRes.data ?? []).map(mapDocument),
+    projectNotes,
+    notifications,
   };
+}
+
+export async function ensureWorkspaceMembership(): Promise<void> {
+  const supabase = requireClient();
+  const { error } = await supabase.rpc("ensure_default_workspace_membership");
+  if (!error) return;
+
+  const isMissingRpc =
+    error.code === "PGRST202" ||
+    error.message.includes("ensure_default_workspace_membership");
+  if (!isMissingRpc) throwDbError(error);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error: insertError } = await supabase.from("workspace_members").insert({
+    workspace_id: DEFAULT_WORKSPACE_ID,
+    profile_id: user.id,
+    role: "member",
+  });
+  if (insertError?.code === "23505") return;
+  throwDbError(insertError);
+}
+
+export async function ensureProjectInDb(
+  project: Project,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<void> {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from("projects").select("id").eq("id", project.id).maybeSingle();
+  throwDbError(error);
+  if (data) return;
+  await saveProject(project, workspaceId);
 }
 
 export async function saveProject(project: Project, workspaceId = DEFAULT_WORKSPACE_ID) {
@@ -385,7 +459,7 @@ export async function saveProject(project: Project, workspaceId = DEFAULT_WORKSP
     lead_id: project.leadId,
     color: project.color,
   });
-  if (error) throw error;
+  throwDbError(error);
 }
 
 export async function saveTask(task: Task, workspaceId = DEFAULT_WORKSPACE_ID) {
@@ -405,10 +479,9 @@ export async function saveTask(task: Task, workspaceId = DEFAULT_WORKSPACE_ID) {
     comments_count: task.comments,
     attachments_count: task.attachments,
     parent_id: task.parentId ?? null,
-    linked_item_ids: task.linkedItemIds ?? [],
     created_at: task.createdAt,
   });
-  if (error) throw error;
+  throwDbError(error);
 }
 
 export async function updateTaskInDb(id: string, patch: Partial<Task>) {
@@ -450,10 +523,9 @@ export async function saveIssue(issue: Issue, workspaceId = DEFAULT_WORKSPACE_ID
     expected: issue.expected ?? null,
     actual: issue.actual ?? null,
     parent_id: issue.parentId ?? null,
-    linked_item_ids: issue.linkedItemIds ?? [],
     created_at: issue.createdAt,
   });
-  if (error) throw error;
+  throwDbError(error);
 }
 
 export async function updateIssueInDb(id: string, patch: Partial<Issue>) {
@@ -814,9 +886,11 @@ export async function ensureProfileForUser(user: {
     if (!profileEmail && authEmail) {
       const { error } = await supabase.from("profiles").update({ email: authEmail }).eq("id", user.id);
       if (error) throw error;
+      await ensureWorkspaceMembership();
       return mapProfile({ ...existing, email: authEmail });
     }
 
+    await ensureWorkspaceMembership();
     return mapProfile(existing);
   }
 
@@ -838,12 +912,6 @@ export async function ensureProfileForUser(user: {
   });
   if (profileError) throw profileError;
 
-  const { error: memberError } = await supabase.from("workspace_members").upsert({
-    workspace_id: DEFAULT_WORKSPACE_ID,
-    profile_id: member.id,
-    role: "member",
-  });
-  if (memberError) throw memberError;
-
+  await ensureWorkspaceMembership();
   return member;
 }

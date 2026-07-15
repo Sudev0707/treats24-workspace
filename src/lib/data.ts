@@ -304,6 +304,13 @@ export const priorityColor: Record<Priority, string> = {
   Low: "bg-[#f4f5f7] text-[#626f86] border-[#dfe1e6]",
 };
 
+export const priorityDot: Record<Priority, string> = {
+  Critical: "bg-[#e34935]",
+  High: "bg-[#cf9f02]",
+  Medium: "bg-[#6554c0]",
+  Low: "bg-[#626f86]",
+};
+
 export const statusColor: Record<TaskStatus, string> = {
   Backlog: "bg-[#dfe1e6] text-[#44546f]",
   "To Do": "bg-[#dfe1e6] text-[#44546f]",

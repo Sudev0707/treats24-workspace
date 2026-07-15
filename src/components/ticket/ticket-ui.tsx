@@ -155,17 +155,12 @@ export function WorkTypeIconSquare({
 export function PriorityLozenge({ priority }: { priority: Priority | string }) {
   const p = priority as Priority;
   const isHigh = p === "Critical" || p === "High";
+  const colors = priorityColor[p];
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-        priorityColor[p]?.includes("destructive")
-          ? "bg-destructive/10 text-destructive"
-          : priorityColor[p]?.includes("cta")
-            ? "bg-cta/10 text-cta"
-            : priorityColor[p]?.includes("primary")
-              ? "bg-primary/10 text-primary"
-              : "bg-secondary text-muted-foreground",
+        "inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        colors ?? "border-border bg-muted text-muted-foreground",
       )}
     >
       {isHigh && <span className="mr-1">↑</span>}
@@ -199,6 +194,8 @@ export function PrioritySelect({
             : fieldSelectTriggerClass,
           className,
         )}
+        onClick={isPill ? (e) => e.stopPropagation() : undefined}
+        onPointerDown={isPill ? (e) => e.stopPropagation() : undefined}
       >
         <PriorityLozenge priority={priority} />
         {isPill && <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/80" />}
@@ -1043,6 +1040,7 @@ export function TicketListRow({
   params,
   gridClass,
   onStatusChange,
+  onPriorityChange,
   nested = false,
 }: {
   workType: WorkType;
@@ -1059,6 +1057,7 @@ export function TicketListRow({
   params: Record<string, string>;
   gridClass: string;
   onStatusChange?: (status: TaskStatus) => void;
+  onPriorityChange?: (priority: Priority) => void;
   nested?: boolean;
 }) {
   return (
@@ -1086,7 +1085,19 @@ export function TicketListRow({
           <StatusLozenge status={status} size="sm" />
         )}
       </div>
-      {priority !== undefined && <div className="relative z-10"><PriorityLozenge priority={priority} /></div>}
+      {priority !== undefined && (
+        <div className="relative z-20">
+          {onPriorityChange ? (
+            <PrioritySelect
+              priority={priority as Priority}
+              onPriorityChange={onPriorityChange}
+              variant="pill"
+            />
+          ) : (
+            <PriorityLozenge priority={priority} />
+          )}
+        </div>
+      )}
       {createdAt !== undefined && (
         <span className="relative z-10 hidden text-xs text-muted-foreground sm:block">
           {formatWorkItemDate(createdAt)}
@@ -1264,6 +1275,7 @@ export function TicketListView({
   emptyMessage = "No work items yet.",
   emptyAction,
   onStatusChange,
+  onPriorityChange,
 }: {
   items: TicketListItem[];
   showProject?: boolean;
@@ -1275,6 +1287,7 @@ export function TicketListView({
   emptyMessage?: string;
   emptyAction?: React.ReactNode;
   onStatusChange?: (id: string, kind: "task" | "issue", status: TaskStatus) => void;
+  onPriorityChange?: (id: string, kind: "task" | "issue", priority: Priority) => void;
 }) {
   const [query, setQuery] = useState("");
   const gridClass = listGridClass({ showProject, showReporter });
@@ -1311,6 +1324,11 @@ export function TicketListView({
       onStatusChange={
         onStatusChange
           ? (status) => onStatusChange(item.id, item.entityKind, status)
+          : undefined
+      }
+      onPriorityChange={
+        onPriorityChange && item.priority !== undefined
+          ? (priority) => onPriorityChange(item.id, item.entityKind, priority)
           : undefined
       }
     />

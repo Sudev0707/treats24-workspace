@@ -361,6 +361,10 @@ function ProjectDetailPage() {
                   if (kind === "task") updateTask(id, { status });
                   else updateIssue(id, { status });
                 }}
+                onPriorityChange={(id, kind, priority) => {
+                  if (kind === "task") updateTask(id, { priority });
+                  else updateIssue(id, { severity: priority });
+                }}
               />
             </>
           )}
@@ -452,6 +456,7 @@ function ProjectDetailPage() {
                 showTypeBadge
                 emptyMessage="No issues in this project. Use Create above to add one."
                 onStatusChange={(_id, _kind, status) => updateIssue(_id, { status })}
+                onPriorityChange={(_id, _kind, priority) => updateIssue(_id, { severity: priority })}
               />
             </>
           )}

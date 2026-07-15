@@ -173,18 +173,19 @@ export function CreateTicketDialog({
   onCreated,
 }: CreateTicketDialogProps) {
   const navigate = useNavigate();
-  const { projects, tasks, issues, createTask, createIssue, members } = useWorkspace();
+  const { projects, tasks, issues, createTask, createIssue, members, currentUserId } = useWorkspace();
 
   const [kind, setKind] = useState<WorkKind>(defaultParentId ? "subtask" : defaultKind);
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId ?? projects[0]?.id ?? "");
   const [assigneeId, setAssigneeId] = useState(UNASSIGNED_ID);
-  const [reporterId, setReporterId] = useState(CURRENT_USER_ID);
+  const [reporterId, setReporterId] = useState(currentUserId);
   const [priority, setPriority] = useState<Priority>("Medium");
   const [dueDate, setDueDate] = useState("");
   const [labelsInput, setLabelsInput] = useState("");
   const [createAnother, setCreateAnother] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [steps, setSteps] = useState("");
   const [expected, setExpected] = useState("");
   const [actual, setActual] = useState("");
@@ -221,7 +222,7 @@ export function CreateTicketDialog({
     setSummary("");
     setDescription("");
     setAssigneeId(UNASSIGNED_ID);
-    setReporterId(CURRENT_USER_ID);
+    setReporterId(currentUserId);
     setPriority("Medium");
     setDueDate("");
     setLabelsInput("");
@@ -229,7 +230,7 @@ export function CreateTicketDialog({
     setExpected("");
     setActual("");
     setCreateAnother(false);
-  }, [open, defaultKind, defaultProjectId, defaultParentId, parentProjectId, projects]);
+  }, [open, defaultKind, defaultProjectId, defaultParentId, parentProjectId, projects, currentUserId]);
 
   const resetForm = (keepContext = false) => {
     setSummary("");
@@ -241,7 +242,7 @@ export function CreateTicketDialog({
     setExpected("");
     setActual("");
     setAssigneeId(UNASSIGNED_ID);
-    setReporterId(CURRENT_USER_ID);
+    setReporterId(currentUserId);
     if (!keepContext) {
       setKind(defaultParentId ? "subtask" : defaultKind);
       setProjectId(defaultProjectId ?? parentProjectId ?? projects[0]?.id ?? "");
@@ -254,11 +255,11 @@ export function CreateTicketDialog({
       .map((l) => l.trim())
       .filter(Boolean);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!summary.trim() || !projectId) return;
+    if (!summary.trim() || !projectId || isSubmitting) return;
 
-    const assignee = assigneeId === UNASSIGNED_ID ? CURRENT_USER_ID : assigneeId;
+    const assignee = assigneeId === UNASSIGNED_ID ? currentUserId : assigneeId;
     const effectiveParentId = parentId ?? defaultParentId;
 
     const taskInput = {
@@ -274,31 +275,38 @@ export function CreateTicketDialog({
       parentId: effectiveParentId,
     };
 
-    // Child work items are always created as sub-tasks linked to the parent
-    if (effectiveParentId) {
-      const task = createTask(taskInput);
-      finishCreate(task.id, "task");
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      // Child work items are always created as sub-tasks linked to the parent
+      if (effectiveParentId) {
+        const task = await createTask(taskInput);
+        finishCreate(task.id, "task");
+        return;
+      }
 
-    if (createsTask) {
-      const task = createTask(taskInput);
-      finishCreate(task.id, "task");
-    } else {
-      const issue = createIssue({
-        title: summary.trim(),
-        description: description.trim() || undefined,
-        type: kind as IssueType,
-        severity: priority,
-        status: defaultStatus,
-        projectId,
-        assigneeId: assignee,
-        reporterId,
-        stepsToReproduce: kind === "Bug" && steps.trim() ? steps.trim() : undefined,
-        expected: kind === "Bug" && expected.trim() ? expected.trim() : undefined,
-        actual: kind === "Bug" && actual.trim() ? actual.trim() : undefined,
-      });
-      finishCreate(issue.id, "issue");
+      if (createsTask) {
+        const task = await createTask(taskInput);
+        finishCreate(task.id, "task");
+      } else {
+        const issue = await createIssue({
+          title: summary.trim(),
+          description: description.trim() || undefined,
+          type: kind as IssueType,
+          severity: priority,
+          status: defaultStatus,
+          projectId,
+          assigneeId: assignee,
+          reporterId,
+          stepsToReproduce: kind === "Bug" && steps.trim() ? steps.trim() : undefined,
+          expected: kind === "Bug" && expected.trim() ? expected.trim() : undefined,
+          actual: kind === "Bug" && actual.trim() ? actual.trim() : undefined,
+        });
+        finishCreate(issue.id, "issue");
+      }
+    } catch {
+      // Error toast is shown by the workspace store
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -318,7 +326,7 @@ export function CreateTicketDialog({
     }
   };
 
-  const canSubmit = Boolean(summary.trim() && projectId);
+  const canSubmit = Boolean(summary.trim() && projectId) && !isSubmitting;
   const dialogTitle = isSubtask ? "Create Sub-task" : `Create ${issueTypeLabel(kind)}`;
 
   return (
@@ -659,7 +667,7 @@ export function CreateTicketDialog({
               className="h-8 min-w-[72px] rounded-[3px] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-glow"
               disabled={!canSubmit}
             >
-              Create
+              {isSubmitting ? "Creating…" : "Create"}
             </Button>
           </div>
         </div>

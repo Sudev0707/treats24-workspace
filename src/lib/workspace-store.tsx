@@ -43,7 +43,9 @@ import {
   deleteTaskInDb,
   completeOnboardingInDb,
   ensureProfileForUser,
+  ensureProjectInDb,
   fetchWorkspaceData,
+  formatDbError,
   generateEntityId,
   markAllNotificationsReadInDb,
   saveActivity,
@@ -153,13 +155,13 @@ type WorkspaceContextValue = {
   currentUserId: string;
   isLoading: boolean;
   isPersisted: boolean;
-  createTask: (input: CreateTaskInput) => Task;
+  createTask: (input: CreateTaskInput) => Promise<Task>;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
-  createIssue: (input: CreateIssueInput) => Issue;
+  createIssue: (input: CreateIssueInput) => Promise<Issue>;
   updateIssue: (id: string, patch: Partial<Issue>) => void;
   deleteIssue: (id: string) => void;
-  createProject: (input: CreateProjectInput) => Project;
+  createProject: (input: CreateProjectInput) => Promise<Project>;
   updateProject: (id: string, patch: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   createQuery: (input: CreateQueryInput) => SavedQuery;
@@ -243,7 +245,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const canPersist = isSupabaseConfigured && Boolean(user);
 
   const loadWorkspaceData = useCallback(async () => {
-    await ensureProfileForUser(user!);
+    try {
+      await ensureProfileForUser(user!);
+    } catch (error) {
+      console.error("Profile setup failed:", error);
+    }
     const data = await fetchWorkspaceData();
     setProjects(data.projects);
     setTasks(data.tasks);
@@ -298,7 +304,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           console.error(error);
           toast.error("Failed to load workspace data", {
-            description: error instanceof Error ? error.message : "Check your Supabase setup.",
+            description: formatDbError(error),
           });
           setIsPersisted(false);
         }
@@ -321,8 +327,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error(error);
         toast.error("Failed to save changes", {
-          description: error instanceof Error ? error.message : "Please try again.",
+          description: formatDbError(error),
         });
+      }
+    },
+    [canPersist],
+  );
+
+  const persistRequired = useCallback(
+    async (operation: () => Promise<void>, message = "Failed to save changes") => {
+      if (!canPersist) {
+        const description = isSupabaseConfigured
+          ? "Sign in to save your work."
+          : "Database is not configured.";
+        toast.error("Unable to save", { description });
+        throw new Error(description);
+      }
+      try {
+        await operation();
+      } catch (error) {
+        console.error(error);
+        toast.error(message, {
+          description: formatDbError(error),
+        });
+        throw error;
       }
     },
     [canPersist],
@@ -344,7 +372,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   const createTask = useCallback(
-    (input: CreateTaskInput): Task => {
+    async (input: CreateTaskInput): Promise<Task> => {
       const project = requireProject(projects, input.projectId);
       const task: Task = {
         id: nextWorkItemId(project.key, input.projectId, tasks, issues),
@@ -362,13 +390,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString().slice(0, 10),
         ...(input.parentId ? { parentId: input.parentId } : {}),
       };
+      await persistRequired(async () => {
+        await ensureProjectInDb(project);
+        await saveTask(task);
+      }, "Failed to create task");
       setTasks((prev) => [task, ...prev]);
       addActivity("created task", input.parentId ? `${task.id} under ${input.parentId}` : task.id);
       toast.success(`${task.id} created`);
-      void persist(() => saveTask(task));
       return task;
     },
-    [projects, tasks, issues, addActivity, currentUserId, persist],
+    [projects, tasks, issues, addActivity, currentUserId, persistRequired],
   );
 
   const updateTask = useCallback(
@@ -391,7 +422,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   const createIssue = useCallback(
-    (input: CreateIssueInput): Issue => {
+    async (input: CreateIssueInput): Promise<Issue> => {
       const project = requireProject(projects, input.projectId);
       const issue: Issue = {
         id: nextWorkItemId(project.key, input.projectId, tasks, issues),
@@ -409,13 +440,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         expected: input.expected,
         actual: input.actual,
       };
+      await persistRequired(async () => {
+        await ensureProjectInDb(project);
+        await saveIssue(issue);
+      }, "Failed to create issue");
       setIssues((prev) => [issue, ...prev]);
       addActivity("opened", input.parentId ? `${issue.id} under ${input.parentId}` : issue.id);
       toast.success(`${issue.id} created`);
-      void persist(() => saveIssue(issue));
       return issue;
     },
-    [projects, tasks, issues, addActivity, currentUserId, persist],
+    [projects, tasks, issues, addActivity, currentUserId, persistRequired],
   );
 
   const updateIssue = useCallback(
@@ -438,7 +472,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   const createProject = useCallback(
-    (input: CreateProjectInput): Project => {
+    async (input: CreateProjectInput): Promise<Project> => {
       const memberIds = input.memberIds?.length
         ? [...new Set([input.leadId, ...input.memberIds])]
         : [input.leadId];
@@ -457,13 +491,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         leadId: input.leadId,
         color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length],
       };
+      await persistRequired(() => saveProject(project), "Failed to create project");
       setProjects((prev) => [project, ...prev]);
       addActivity("created project", project.name);
       toast.success(`Project ${project.key} created`);
-      void persist(() => saveProject(project));
       return project;
     },
-    [projects, addActivity, persist],
+    [projects, addActivity, persistRequired],
   );
 
   const updateProject = useCallback(

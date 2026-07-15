@@ -12,8 +12,8 @@ import {
   JiraTabsList,
   StatusLozenge,
 } from "@/components/jira/ui";
-import { TicketKeyLink } from "@/components/ticket/ticket-ui";
-import { BACKLOG_STATUSES, getMember, getProjectById, isDoneStatus, priorityColor, type Issue, type Task, type Project } from "@/lib/data";
+import { PriorityLozenge, TicketKeyLink } from "@/components/ticket/ticket-ui";
+import { BACKLOG_STATUSES, getMember, getProjectById, isDoneStatus, type Issue, type Task, type Project } from "@/lib/data";
 import { useWorkspace } from "@/lib/workspace-store";
 
 export const Route = createFileRoute("/")({
@@ -54,9 +54,9 @@ function WorkRow({ work, projects }: { work: WorkItem; projects: Project[] }) {
       </Link>
       <span className="hidden truncate text-xs text-jira-subtle sm:block">{project.name}</span>
       <StatusLozenge status={item.status} />
-      <span className={`hidden text-[10px] font-medium sm:block ${priorityColor[isTask ? (item as Task).priority : (item as Issue).severity]?.includes("destructive") ? "text-jira-danger" : "text-jira-subtle"}`}>
-        {isTask ? (item as Task).priority : (item as Issue).severity}
-      </span>
+      <div className="hidden sm:block">
+        <PriorityLozenge priority={isTask ? (item as Task).priority : (item as Issue).severity} />
+      </div>
       <AssigneeAvatar initials={assignee.avatar} size="sm" />
     </div>
   );

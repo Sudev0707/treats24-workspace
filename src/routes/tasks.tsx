@@ -125,6 +125,10 @@ function TasksPage() {
             if (kind === "task") updateTask(id, { status });
             else updateIssue(id, { status });
           }}
+          onPriorityChange={(id, kind, priority) => {
+            if (kind === "task") updateTask(id, { priority });
+            else updateIssue(id, { severity: priority });
+          }}
         />
       ) : (
         <JiraKanbanBoard>

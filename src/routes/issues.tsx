@@ -97,6 +97,7 @@ function IssuesPage() {
         showTypeBadge
         emptyMessage="No issues yet. Use Create above to add one."
         onStatusChange={(id, _kind, status) => updateIssue(id, { status })}
+        onPriorityChange={(id, _kind, priority) => updateIssue(id, { severity: priority })}
       />
 
       <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} defaultKind="Bug" />
