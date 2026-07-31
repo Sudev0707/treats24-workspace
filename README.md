@@ -343,7 +343,5 @@ treats24-workspace/
 
 Internal — Treats24 Private Workspace
 
----
 
-*Built with ❤️ by the Treats24 Team*
 
